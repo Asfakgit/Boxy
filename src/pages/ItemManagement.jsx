@@ -21,7 +21,8 @@ import {
   TrendingUp,
   Tag,
   Search,
-  ArrowRight
+  ArrowRight,
+  Calculator
 } from 'lucide-react';
 
 export const ItemManagement = () => {
@@ -206,15 +207,22 @@ export const ItemManagement = () => {
   const handleOpenLookModal = (item) => {
     const rawData = item?.raw ? { ...item.raw } : { ...item };
     const isProduct = item?.type === 'product' || (rawData?.code && !rawData?.id?.startsWith('RM-'));
+    const stock = rawData.currentStock !== undefined && rawData.currentStock !== '' ? Number(rawData.currentStock) : 0;
+    const cost = Number(rawData.costPrice || 0);
+    const totalAmount = rawData.totalAmount !== undefined && rawData.totalAmount !== '' 
+      ? Number(rawData.totalAmount) 
+      : Number((stock * cost).toFixed(2));
+
     setViewingItem({
       ...rawData,
       type: isProduct ? 'product' : 'rawMaterial',
       typeLabel: isProduct ? 'Menu Dish' : 'Raw Ingredient',
-      currentStock: rawData.currentStock !== undefined && rawData.currentStock !== '' ? Number(rawData.currentStock) : 0,
+      currentStock: stock,
       minStock: Number(rawData.minStock || 5),
       unit: rawData.unit || (isProduct ? 'portion' : 'kg'),
       sellingPrice: Number(rawData.sellingPrice || 0),
-      costPrice: Number(rawData.costPrice || 0)
+      costPrice: cost,
+      totalAmount
     });
   };
 
@@ -225,6 +233,11 @@ export const ItemManagement = () => {
     if (item) {
       const rawData = item?.raw ? { ...item.raw } : { ...item };
       const isProduct = item.type === 'product' || (rawData.code && !rawData.id?.startsWith('RM-'));
+      const stock = rawData.currentStock !== undefined ? Number(rawData.currentStock) : 0;
+      const cost = rawData.costPrice !== undefined ? Number(rawData.costPrice) : 0;
+      const calcTotal = Number((stock * cost).toFixed(2));
+      const existingTotal = rawData.totalAmount !== undefined && rawData.totalAmount !== '' ? Number(rawData.totalAmount) : calcTotal;
+
       setEditingItem({
         ...rawData,
         id: rawData.id || rawData.code,
@@ -233,6 +246,7 @@ export const ItemManagement = () => {
         minStock: rawData.minStock !== undefined ? String(rawData.minStock) : '5',
         sellingPrice: rawData.sellingPrice !== undefined ? String(rawData.sellingPrice) : '0',
         costPrice: rawData.costPrice !== undefined ? String(rawData.costPrice) : '0',
+        totalAmount: existingTotal > 0 ? String(existingTotal) : '',
         unit: rawData.unit || (isProduct ? 'portion' : 'kg'),
         _itemType: isProduct ? 'products' : 'materials'
       });
@@ -256,13 +270,54 @@ export const ItemManagement = () => {
               category: 'Ingredients',
               unit: 'kg',
               costPrice: '',
-              currentStock: '10',
+              currentStock: '',
+              totalAmount: '',
               minStock: '5',
               _itemType: 'materials'
             }
       );
     }
     setModalOpen(true);
+  };
+
+  // Dynamic 2-way auto-calculation for Raw Materials
+  const handleMaterialQtyChange = (val) => {
+    setEditingItem(prev => {
+      const qty = val;
+      const cost = prev.costPrice;
+      let total = prev.totalAmount;
+      if (qty !== '' && cost !== '' && !isNaN(Number(qty)) && !isNaN(Number(cost))) {
+        total = String(Number((Number(qty) * Number(cost)).toFixed(2)));
+      } else if (qty !== '' && total !== '' && !isNaN(Number(qty)) && Number(qty) > 0 && !isNaN(Number(total))) {
+        const calculatedCost = String(Number((Number(total) / Number(qty)).toFixed(2)));
+        return { ...prev, currentStock: qty, costPrice: calculatedCost };
+      }
+      return { ...prev, currentStock: qty, totalAmount: total };
+    });
+  };
+
+  const handleMaterialCostChange = (val) => {
+    setEditingItem(prev => {
+      const cost = val;
+      const qty = prev.currentStock;
+      let total = prev.totalAmount;
+      if (cost !== '' && qty !== '' && !isNaN(Number(cost)) && !isNaN(Number(qty))) {
+        total = String(Number((Number(qty) * Number(cost)).toFixed(2)));
+      }
+      return { ...prev, costPrice: cost, totalAmount: total };
+    });
+  };
+
+  const handleMaterialTotalChange = (val) => {
+    setEditingItem(prev => {
+      const total = val;
+      const qty = prev.currentStock;
+      let cost = prev.costPrice;
+      if (total !== '' && qty !== '' && !isNaN(Number(total)) && !isNaN(Number(qty)) && Number(qty) > 0) {
+        cost = String(Number((Number(total) / Number(qty)).toFixed(2)));
+      }
+      return { ...prev, totalAmount: total, costPrice: cost };
+    });
   };
 
   const handleOpenAdjust = (item) => {
@@ -355,8 +410,17 @@ export const ItemManagement = () => {
       payload.unit = payload.unit || 'portion';
       payload.status = payload.status || 'Active';
     } else {
-      payload.costPrice = Number(payload.costPrice || 0);
       payload.currentStock = Number(payload.currentStock || 0);
+      let cost = Number(payload.costPrice || 0);
+      let total = Number(payload.totalAmount || 0);
+      if (cost === 0 && total > 0 && payload.currentStock > 0) {
+        cost = Number((total / payload.currentStock).toFixed(2));
+      }
+      if (total === 0 && cost > 0 && payload.currentStock > 0) {
+        total = Number((payload.currentStock * cost).toFixed(2));
+      }
+      payload.costPrice = cost;
+      payload.totalAmount = total;
       payload.minStock = Number(payload.minStock || 5);
       payload.unit = payload.unit || 'kg';
     }
@@ -737,14 +801,14 @@ export const ItemManagement = () => {
                 )
               },
               {
-                header: 'Current Stock',
+                header: 'Units Bought / Stock',
                 accessor: 'currentStock',
                 render: (r) => {
                   const isLow = Number(r.currentStock || 0) <= Number(r.minStock || 0);
                   return (
                     <div className="flex items-center gap-1.5">
                       <span className={`font-black text-sm ${isLow ? 'text-rose-600' : 'text-slate-800 dark:text-white'}`}>
-                        {r.currentStock || 0} {r.unit}
+                        {r.currentStock || 0} {r.unit || 'kg'}
                       </span>
                       {isLow && <AlertTriangle className="w-3.5 h-3.5 text-rose-500" title="Low stock threshold reached" />}
                     </div>
@@ -752,9 +816,22 @@ export const ItemManagement = () => {
                 }
               },
               {
-                header: 'Cost Price',
+                header: 'Cost / Unit',
                 accessor: 'costPrice',
-                render: (r) => <span className="font-black text-sm">{fmt(r.costPrice)} / {r.unit || 'unit'}</span>
+                render: (r) => <span className="font-bold text-sm text-slate-700 dark:text-slate-300">{fmt(r.costPrice)} / {r.unit || 'kg'}</span>
+              },
+              {
+                header: 'Total Amount',
+                accessor: 'totalAmount',
+                render: (r) => {
+                  const total = Number(r.totalAmount || (Number(r.currentStock || 0) * Number(r.costPrice || 0)));
+                  return (
+                    <div>
+                      <span className="font-black text-sm text-emerald-600 dark:text-emerald-400 block">{fmt(total)}</span>
+                      <span className="text-[10px] text-slate-400">Total Purchase Value</span>
+                    </div>
+                  );
+                }
               },
               {
                 header: 'Actions (Look / Edit)',
@@ -986,9 +1063,11 @@ export const ItemManagement = () => {
 
             {/* Metrics Grid */}
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {/* Current Stock */}
+              {/* Current Stock / Units Bought */}
               <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Current Stock</span>
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                  {viewingItem.type === 'product' ? 'Current Stock' : 'Units Bought / Stock'}
+                </span>
                 <span className="text-xl font-black text-indigo-600 dark:text-indigo-400 block mt-0.5">
                   {viewingItem.currentStock} <span className="text-xs font-bold text-slate-500">{viewingItem.unit}</span>
                 </span>
@@ -1006,14 +1085,27 @@ export const ItemManagement = () => {
                 </div>
               )}
 
-              {/* Cost Price */}
+              {/* Cost Price / Cost per Unit */}
               <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Cost Price</span>
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                  {viewingItem.type === 'product' ? 'Cost Price' : 'Cost / Unit'}
+                </span>
                 <span className="text-xl font-black text-slate-800 dark:text-slate-200 block mt-0.5">
                   {fmt(viewingItem.costPrice)}
                 </span>
                 <span className="text-[10px] text-slate-400 block mt-1">Cost per {viewingItem.unit}</span>
               </div>
+
+              {/* Total Amount (for Raw Materials) */}
+              {viewingItem.type !== 'product' && (
+                <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total Amount</span>
+                  <span className="text-xl font-black text-emerald-600 dark:text-emerald-400 block mt-0.5">
+                    {fmt(Number(viewingItem.totalAmount || (viewingItem.currentStock * viewingItem.costPrice)))}
+                  </span>
+                  <span className="text-[10px] text-slate-400 block mt-1">Total purchase value</span>
+                </div>
+              )}
 
               {/* Margin & Profit (for Menu Items) */}
               {viewingItem.type === 'product' && viewingItem.sellingPrice > 0 && (
@@ -1029,6 +1121,26 @@ export const ItemManagement = () => {
                   <div className="text-right">
                     <span className="text-2xl font-black text-indigo-600 dark:text-indigo-400">
                       {Math.round(((viewingItem.sellingPrice - viewingItem.costPrice) / viewingItem.sellingPrice) * 100)}%
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Purchase Breakdown Banner (for Raw Materials) */}
+              {viewingItem.type !== 'product' && (
+                <div className="col-span-2 sm:col-span-3 p-3.5 rounded-xl bg-amber-50/60 dark:bg-amber-950/30 border border-amber-200/70 dark:border-amber-900/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <span className="text-[11px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1">
+                      <Package className="w-3.5 h-3.5" /> Purchase Breakdown
+                    </span>
+                    <span className="text-xs text-slate-600 dark:text-slate-400 mt-0.5 block">
+                      {viewingItem.currentStock} {viewingItem.unit} purchased at {fmt(viewingItem.costPrice)} per {viewingItem.unit}
+                    </span>
+                  </div>
+                  <div className="sm:text-right">
+                    <span className="text-[11px] text-slate-400 block font-bold uppercase tracking-wider">Total Purchase Value</span>
+                    <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
+                      {fmt(Number(viewingItem.totalAmount || (viewingItem.currentStock * viewingItem.costPrice)))}
                     </span>
                   </div>
                 </div>
@@ -1149,157 +1261,283 @@ export const ItemManagement = () => {
           title={editingItem.id || editingItem.code ? `Edit ${editingItem._itemType === 'products' ? 'Menu Item' : 'Raw Material'}` : `Add New ${editingItem._itemType === 'products' ? 'Menu Item' : 'Raw Material'}`}
         >
           <form onSubmit={handleSave} className="space-y-4 pt-2">
+            {/* Item Name */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Item Name *</label>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                {editingItem._itemType === 'products' ? 'Item Name *' : 'Raw Material Name *'}
+              </label>
               <input
                 type="text"
                 required
                 value={editingItem.name || ''}
                 onChange={(e) => setEditingItem({ ...editingItem, name: e.target.value })}
-                placeholder={editingItem._itemType === 'products' ? 'e.g. Classic Shawarma Box' : 'e.g. Fresh Chicken Breast'}
+                placeholder={editingItem._itemType === 'products' ? 'e.g. Classic Shawarma Box' : 'e.g. maidha, fresh chicken, cooking oil...'}
                 className="w-full px-3.5 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold"
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Category</label>
-                <input
-                  type="text"
-                  value={editingItem.category || ''}
-                  onChange={(e) => setEditingItem({ ...editingItem, category: e.target.value })}
-                  placeholder={editingItem._itemType === 'products' ? 'Shawarma' : 'Poultry'}
-                  className="w-full px-3.5 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl"
-                />
-              </div>
-
-              {editingItem._itemType === 'products' ? (
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Selling Price ({currency}) *</label>
-                  <input
-                    type="number"
-                    step="any"
-                    required
-                    value={editingItem.sellingPrice || ''}
-                    onChange={(e) => setEditingItem({ ...editingItem, sellingPrice: e.target.value })}
-                    placeholder="120.00"
-                    className="w-full px-3.5 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-black text-emerald-600"
-                  />
+            {editingItem._itemType === 'products' ? (
+              /* MENU ITEM FORM FIELDS */
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Category</label>
+                    <input
+                      type="text"
+                      value={editingItem.category || ''}
+                      onChange={(e) => setEditingItem({ ...editingItem, category: e.target.value })}
+                      placeholder="Shawarma"
+                      className="w-full px-3.5 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Selling Price ({currency}) *</label>
+                    <input
+                      type="number"
+                      step="any"
+                      required
+                      value={editingItem.sellingPrice || ''}
+                      onChange={(e) => setEditingItem({ ...editingItem, sellingPrice: e.target.value })}
+                      placeholder="120.00"
+                      className="w-full px-3.5 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-black text-emerald-600"
+                    />
+                  </div>
                 </div>
-              ) : (
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Cost / Unit ({currency})</label>
-                  <input
-                    type="number"
-                    step="any"
-                    value={editingItem.costPrice || ''}
-                    onChange={(e) => setEditingItem({ ...editingItem, costPrice: e.target.value })}
-                    placeholder="250.00"
-                    className="w-full px-3.5 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold"
-                  />
-                </div>
-              )}
-            </div>
 
-            {editingItem._itemType === 'products' && (
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Cost Price ({currency})</label>
-                  <input
-                    type="number"
-                    step="any"
-                    value={editingItem.costPrice || ''}
-                    onChange={(e) => setEditingItem({ ...editingItem, costPrice: e.target.value })}
-                    placeholder="60.00"
-                    className="w-full px-3.5 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Status</label>
-                  <select
-                    value={editingItem.status || 'Active'}
-                    onChange={(e) => setEditingItem({ ...editingItem, status: e.target.value })}
-                    className="w-full px-3.5 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold"
-                  >
-                    <option value="Active">Active</option>
-                    <option value="Inactive">Inactive</option>
-                  </select>
-                </div>
-              </div>
-            )}
-
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Current Stock</label>
-                <input
-                  type="number"
-                  step="any"
-                  value={editingItem.currentStock || ''}
-                  onChange={(e) => setEditingItem({ ...editingItem, currentStock: e.target.value })}
-                  placeholder="20"
-                  className="w-full px-3.5 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-black text-indigo-600"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Min Alert Level</label>
-                <input
-                  type="number"
-                  step="any"
-                  value={editingItem.minStock || ''}
-                  onChange={(e) => setEditingItem({ ...editingItem, minStock: e.target.value })}
-                  placeholder="5"
-                  className="w-full px-3.5 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Unit</label>
-                <select
-                  value={editingItem.unit || (editingItem._itemType === 'products' ? 'portion' : 'kg')}
-                  onChange={(e) => setEditingItem({ ...editingItem, unit: e.target.value })}
-                  className="w-full px-3.5 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold"
-                >
-                  <option value="portion">portion</option>
-                  <option value="box">box</option>
-                  <option value="plate">plate</option>
-                  <option value="pcs">pcs</option>
-                  <option value="can">can</option>
-                  <option value="bottle">bottle</option>
-                  <option value="kg">kg</option>
-                  <option value="g">g</option>
-                  <option value="ltr">ltr</option>
-                  <option value="pkt">pkt</option>
-                </select>
-              </div>
-            </div>
-
-            {editingItem._itemType === 'products' && (
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Item Photo (Optional)</label>
-                <div className="flex items-center gap-3">
-                  {editingItem.image && (
-                    <img src={editingItem.image} className="w-12 h-12 rounded-xl object-cover border" alt="" />
-                  )}
-                  <label className="cursor-pointer px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold hover:bg-slate-200 flex items-center gap-2">
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>Upload Image</span>
-                    <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
-                  </label>
-                  {editingItem.image && (
-                    <button
-                      type="button"
-                      onClick={() => setEditingItem({ ...editingItem, image: '' })}
-                      className="text-xs text-rose-500 hover:underline"
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Cost Price ({currency})</label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={editingItem.costPrice || ''}
+                      onChange={(e) => setEditingItem({ ...editingItem, costPrice: e.target.value })}
+                      placeholder="60.00"
+                      className="w-full px-3.5 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Status</label>
+                    <select
+                      value={editingItem.status || 'Active'}
+                      onChange={(e) => setEditingItem({ ...editingItem, status: e.target.value })}
+                      className="w-full px-3.5 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold"
                     >
-                      Remove
-                    </button>
-                  )}
+                      <option value="Active">Active</option>
+                      <option value="Inactive">Inactive</option>
+                    </select>
+                  </div>
                 </div>
-              </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Current Stock</label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={editingItem.currentStock || ''}
+                      onChange={(e) => setEditingItem({ ...editingItem, currentStock: e.target.value })}
+                      placeholder="20"
+                      className="w-full px-3.5 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-black text-indigo-600"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Min Alert Level</label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={editingItem.minStock || ''}
+                      onChange={(e) => setEditingItem({ ...editingItem, minStock: e.target.value })}
+                      placeholder="5"
+                      className="w-full px-3.5 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Unit</label>
+                    <select
+                      value={editingItem.unit || 'portion'}
+                      onChange={(e) => setEditingItem({ ...editingItem, unit: e.target.value })}
+                      className="w-full px-3.5 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold"
+                    >
+                      <option value="portion">portion</option>
+                      <option value="box">box</option>
+                      <option value="plate">plate</option>
+                      <option value="pcs">pcs</option>
+                      <option value="can">can</option>
+                      <option value="bottle">bottle</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Item Photo (Optional)</label>
+                  <div className="flex items-center gap-3">
+                    {editingItem.image && (
+                      <img src={editingItem.image} className="w-12 h-12 rounded-xl object-cover border" alt="" />
+                    )}
+                    <label className="cursor-pointer px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold hover:bg-slate-200 flex items-center gap-2">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Upload Image</span>
+                      <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+                    </label>
+                    {editingItem.image && (
+                      <button
+                        type="button"
+                        onClick={() => setEditingItem({ ...editingItem, image: '' })}
+                        className="text-xs text-rose-500 hover:underline"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </>
+            ) : (
+              /* RAW MATERIAL FORM FIELDS */
+              <>
+                {/* Category & Unit of Measure */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Category</label>
+                    <input
+                      type="text"
+                      value={editingItem.category || ''}
+                      onChange={(e) => setEditingItem({ ...editingItem, category: e.target.value })}
+                      placeholder="e.g. Ingredients"
+                      className="w-full px-3.5 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Unit of Measure</label>
+                    <select
+                      value={editingItem.unit || 'kg'}
+                      onChange={(e) => setEditingItem({ ...editingItem, unit: e.target.value })}
+                      className="w-full px-3.5 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold"
+                    >
+                      <option value="kg">kg (Kilograms)</option>
+                      <option value="g">g (Grams)</option>
+                      <option value="ltr">ltr (Liters)</option>
+                      <option value="ml">ml (Milliliters)</option>
+                      <option value="pkt">pkt (Packets)</option>
+                      <option value="pcs">pcs (Pieces)</option>
+                      <option value="box">box (Boxes)</option>
+                      <option value="can">can (Cans)</option>
+                      <option value="bottle">bottle (Bottles)</option>
+                      <option value="portion">portion</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Dedicated Purchase & Stock Calculation Card */}
+                <div className="p-4 rounded-2xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200/90 dark:border-amber-800/60 space-y-3.5 shadow-2xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-extrabold text-amber-800 dark:text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
+                      <Calculator className="w-4 h-4 text-amber-600 dark:text-amber-400" /> Purchase & Cost Details
+                    </span>
+                    <span className="text-[10px] text-amber-700/80 dark:text-amber-400 font-semibold bg-amber-100/80 dark:bg-amber-900/40 px-2 py-0.5 rounded-full">
+                      ⚡ Auto-calculates both ways
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {/* 1. How many units bought / quantity */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Units Bought ({editingItem.unit || 'kg'}) *
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        required
+                        value={editingItem.currentStock ?? ''}
+                        onChange={(e) => handleMaterialQtyChange(e.target.value)}
+                        placeholder="e.g. 20"
+                        className="w-full px-3.5 py-2.5 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-black text-indigo-600 dark:text-indigo-400 focus:ring-2 focus:ring-amber-400"
+                      />
+                      <span className="text-[10px] text-slate-400 mt-0.5 block">Quantity bought</span>
+                    </div>
+
+                    {/* 2. Cost per unit */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Cost / Unit ({currency}) *
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        required
+                        value={editingItem.costPrice ?? ''}
+                        onChange={(e) => handleMaterialCostChange(e.target.value)}
+                        placeholder="e.g. 20.00"
+                        className="w-full px-3.5 py-2.5 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-black text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-amber-400"
+                      />
+                      <span className="text-[10px] text-slate-400 mt-0.5 block">Price per {editingItem.unit || 'kg'}</span>
+                    </div>
+
+                    {/* 3. Total Amount */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                        Total Amount ({currency}) *
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        required
+                        value={editingItem.totalAmount ?? ''}
+                        onChange={(e) => handleMaterialTotalChange(e.target.value)}
+                        placeholder="e.g. 400.00"
+                        className="w-full px-3.5 py-2.5 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-black text-emerald-600 dark:text-emerald-400 focus:ring-2 focus:ring-amber-400"
+                      />
+                      <span className="text-[10px] text-slate-400 mt-0.5 block">Total purchase cost</span>
+                    </div>
+                  </div>
+
+                  {/* Live Calculation Preview Pill */}
+                  <div className="pt-2.5 border-t border-amber-200/70 dark:border-amber-800/60 flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <div className="flex items-center gap-1.5 font-bold text-slate-700 dark:text-slate-300">
+                      <span className="px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-400 font-black">
+                        {editingItem.currentStock || 0} {editingItem.unit || 'kg'}
+                      </span>
+                      <span>×</span>
+                      <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold">
+                        {fmt(editingItem.costPrice || 0)}
+                      </span>
+                      <span>=</span>
+                      <span className="px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 font-black text-sm">
+                        {fmt(editingItem.totalAmount || (Number(editingItem.currentStock || 0) * Number(editingItem.costPrice || 0)))}
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                      Units × Cost/Unit = Total Purchase Amount
+                    </span>
+                  </div>
+                </div>
+
+                {/* Min Alert Level */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Low Stock Alert Level ({editingItem.unit || 'kg'})
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={editingItem.minStock || ''}
+                    onChange={(e) => setEditingItem({ ...editingItem, minStock: e.target.value })}
+                    placeholder="5"
+                    className="w-full px-3.5 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">
+                    Trigger low-stock notification when inventory falls below this amount
+                  </span>
+                </div>
+              </>
             )}
 
             <div className="flex justify-end gap-2 pt-3">
               <Button type="button" variant="ghost" onClick={() => setModalOpen(false)}>Cancel</Button>
-              <Button type="submit" variant="primary" isLoading={isLoading}>Save Item</Button>
+              <Button type="submit" variant="primary" isLoading={isLoading}>
+                {editingItem.id || editingItem.code ? 'Save Changes' : (editingItem._itemType === 'products' ? 'Save Menu Item' : 'Save Raw Material')}
+              </Button>
             </div>
           </form>
         </Modal>
