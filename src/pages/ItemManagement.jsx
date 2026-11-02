@@ -289,10 +289,10 @@ export const ItemManagement = () => {
       </div>
 
       {/* Modern Tabs */}
-      <div className="flex flex-wrap bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl w-full sm:w-max border border-slate-200/80 dark:border-slate-700/80 gap-1">
+      <div className="flex bg-slate-100 dark:bg-slate-800 p-1 sm:p-1.5 rounded-2xl w-full sm:w-max border border-slate-200/80 dark:border-slate-700/80 gap-1 overflow-x-auto max-w-full scrollbar-none">
         <button
           onClick={() => setActiveTab('stock')}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs transition-all ${
+          className={`flex items-center gap-2 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl font-bold text-xs whitespace-nowrap shrink-0 transition-all ${
             activeTab === 'stock'
               ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
@@ -304,7 +304,7 @@ export const ItemManagement = () => {
 
         <button
           onClick={() => setActiveTab('products')}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs transition-all ${
+          className={`flex items-center gap-2 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl font-bold text-xs whitespace-nowrap shrink-0 transition-all ${
             activeTab === 'products'
               ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
@@ -316,7 +316,7 @@ export const ItemManagement = () => {
 
         <button
           onClick={() => setActiveTab('materials')}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs transition-all ${
+          className={`flex items-center gap-2 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl font-bold text-xs whitespace-nowrap shrink-0 transition-all ${
             activeTab === 'materials'
               ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'

@@ -50,18 +50,18 @@ export const Table = ({
 
       {/* Desktop / Tablet Table View */}
       <div className={`${cardRender ? 'hidden md:block' : 'block'} bg-white dark:bg-slate-900/90 rounded-2xl border border-slate-200/80 dark:border-slate-800/80 shadow-xs overflow-hidden`}>
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto scrollbar-thin">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-50/70 dark:bg-slate-900/90 border-b border-slate-200/80 dark:border-slate-800 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+              <tr className="bg-slate-50/70 dark:bg-slate-900/90 border-b border-slate-200/80 dark:border-slate-800 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
                 {columns.map((col, idx) => (
-                  <th key={idx} className={`py-3.5 px-4 ${col.className || ''}`}>
+                  <th key={idx} className={`py-3 px-3 sm:px-4 whitespace-nowrap ${col.className || ''}`}>
                     {col.header}
                   </th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-sm text-slate-700 dark:text-slate-300">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs sm:text-sm text-slate-700 dark:text-slate-300">
               {paginatedData.length > 0 ? (
                 paginatedData.map((row, rowIdx) => (
                   <tr
@@ -70,7 +70,7 @@ export const Table = ({
                     className={`transition-colors duration-150 ${onRowClick ? 'cursor-pointer hover:bg-indigo-50/40 dark:hover:bg-indigo-950/20' : 'hover:bg-slate-50/60 dark:hover:bg-slate-800/40'}`}
                   >
                     {columns.map((col, colIdx) => (
-                      <td key={colIdx} className={`py-3.5 px-4 whitespace-nowrap ${col.className || ''}`}>
+                      <td key={colIdx} className={`py-2.5 sm:py-3.5 px-3 sm:px-4 whitespace-nowrap ${col.className || ''}`}>
                         {col.render ? col.render(row) : row[col.accessor] !== undefined ? row[col.accessor] : '—'}
                       </td>
                     ))}
@@ -117,7 +117,7 @@ export const Table = ({
 
       {/* Pagination Footer */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between px-2 pt-2 text-xs text-slate-500 dark:text-slate-400 font-medium">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-2 pt-2 text-xs text-slate-500 dark:text-slate-400 font-medium">
           <span>Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredData.length)} of {filteredData.length} entries</span>
           <div className="flex items-center gap-1.5">
             <button

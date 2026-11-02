@@ -201,7 +201,7 @@ export const POS = () => {
           </div>
 
           {/* Product Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 max-h-[calc(100vh-250px)] overflow-y-auto pr-1">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-2.5 sm:gap-3 max-h-[calc(100vh-250px)] overflow-y-auto pr-1">
             {filteredProducts.map(prod => {
               const inCart = cart.find(i => i.productCode === prod.code);
               return (
@@ -319,18 +319,18 @@ export const POS = () => {
             </div>
 
             {/* Cart Items List */}
-            <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+            <div className="space-y-2 max-h-60 sm:max-h-72 lg:max-h-[calc(100vh-420px)] overflow-y-auto pr-1">
               {cart.map(item => (
-                <div key={item.productCode} className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 text-xs">
-                  <div className="flex-1 min-w-0 pr-2">
+                <div key={item.productCode} className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 text-xs gap-1.5">
+                  <div className="flex-1 min-w-0 pr-1">
                     <p className="font-bold text-slate-800 dark:text-slate-100 truncate">{item.productName}</p>
                     <p className="text-[10px] text-slate-400">{fmt(item.unitPrice)} each</p>
                   </div>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
                     <button
                       type="button"
                       onClick={() => updateCartQuantity(item.productCode, -1)}
-                      className="w-6 h-6 rounded-lg bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center hover:bg-slate-200 transition-colors"
+                      className="w-6 h-6 rounded-lg bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center hover:bg-slate-200 transition-colors shrink-0"
                       title="Decrease quantity by 1"
                     >
                       <Minus className="w-3 h-3" />
@@ -340,24 +340,24 @@ export const POS = () => {
                       min="1"
                       value={item.quantity}
                       onChange={(e) => setCartQuantity(item.productCode, e.target.value)}
-                      className="w-12 text-center font-black text-xs py-1 px-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-indigo-600 dark:text-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs"
+                      className="w-11 sm:w-12 text-center font-black text-xs py-1 px-0.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-indigo-600 dark:text-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs shrink-0"
                       title="Type sale quantity"
                     />
                     <button
                       type="button"
                       onClick={() => updateCartQuantity(item.productCode, 1)}
-                      className="w-6 h-6 rounded-lg bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center hover:bg-slate-200 transition-colors"
+                      className="w-6 h-6 rounded-lg bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center hover:bg-slate-200 transition-colors shrink-0"
                       title="Increase quantity by 1"
                     >
                       <Plus className="w-3 h-3" />
                     </button>
-                    <span className="w-16 text-right font-black text-slate-900 dark:text-white">
+                    <span className="w-14 sm:w-16 text-right font-black text-slate-900 dark:text-white shrink-0 truncate">
                       {fmt(item.unitPrice * item.quantity)}
                     </span>
                     <button
                       type="button"
                       onClick={() => removeFromCart(item.productCode)}
-                      className="text-slate-400 hover:text-rose-500 p-1"
+                      className="text-slate-400 hover:text-rose-500 p-1 shrink-0"
                       title="Remove item"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -689,6 +689,24 @@ export const POS = () => {
             </div>
           </div>
         </Modal>
+      )}
+
+      {/* Floating Bottom Cart Bar for Mobile View */}
+      {cart.length > 0 && mobileViewTab === 'menu' && (
+        <div className="lg:hidden fixed bottom-20 left-4 right-4 z-40 animate-slideUp">
+          <button
+            onClick={() => setMobileViewTab('cart')}
+            className="w-full py-3 px-4 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-2xl shadow-xl flex items-center justify-between font-black text-xs sm:text-sm active:scale-98 transition-transform"
+          >
+            <div className="flex items-center gap-2">
+              <span className="w-6 h-6 rounded-lg bg-white/20 flex items-center justify-center text-xs font-black">
+                {cart.reduce((s, i) => s + i.quantity, 0)}
+              </span>
+              <span>View Cart & Checkout</span>
+            </div>
+            <span>{fmt(totalAmount)} &rarr;</span>
+          </button>
+        </div>
       )}
     </div>
   );

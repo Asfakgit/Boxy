@@ -210,7 +210,7 @@ export const PurchaseManagement = () => {
           subtitle="Add raw materials into inventory and track vendor payables"
         >
           <form onSubmit={handleSubmitPurchase} className="space-y-4 pt-2">
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Supplier / Vendor *</label>
                 <select

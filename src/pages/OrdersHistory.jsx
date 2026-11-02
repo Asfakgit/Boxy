@@ -133,34 +133,34 @@ export const OrdersHistory = () => {
       </div>
 
       {/* Summary KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
-          <p className="text-xs font-bold uppercase text-slate-400">Total Orders Invoiced</p>
-          <h3 className="text-2xl font-black text-slate-900 dark:text-white mt-1">{sales.length} Orders</h3>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="p-3.5 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
+          <p className="text-[10px] sm:text-xs font-bold uppercase text-slate-400">Total Invoiced</p>
+          <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-1">{sales.length} Orders</h3>
         </div>
-        <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
-          <p className="text-xs font-bold uppercase text-slate-400">Total Sales Volume</p>
-          <h3 className="text-2xl font-black text-indigo-600 dark:text-indigo-400 mt-1">{fmt(totalSalesRevenue)}</h3>
+        <div className="p-3.5 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
+          <p className="text-[10px] sm:text-xs font-bold uppercase text-slate-400">Sales Volume</p>
+          <h3 className="text-xl sm:text-2xl font-black text-indigo-600 dark:text-indigo-400 mt-1">{fmt(totalSalesRevenue)}</h3>
         </div>
-        <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
-          <p className="text-xs font-bold uppercase text-slate-400">Total Gross Profit</p>
-          <h3 className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">{fmt(totalGrossProfit)}</h3>
+        <div className="p-3.5 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
+          <p className="text-[10px] sm:text-xs font-bold uppercase text-slate-400">Gross Profit</p>
+          <h3 className="text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">{fmt(totalGrossProfit)}</h3>
         </div>
-        <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
-          <p className="text-xs font-bold uppercase text-slate-400">Avg Order Value</p>
-          <h3 className="text-2xl font-black text-slate-800 dark:text-white mt-1">{fmt(avgOrderValue)}</h3>
+        <div className="p-3.5 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
+          <p className="text-[10px] sm:text-xs font-bold uppercase text-slate-400">Avg Order</p>
+          <h3 className="text-xl sm:text-2xl font-black text-slate-800 dark:text-white mt-1">{fmt(avgOrderValue)}</h3>
         </div>
       </div>
 
       {/* Filter Toolbar */}
-      <div className="flex items-center justify-between p-3 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800">
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs font-bold text-slate-400 px-2">Payment Filter:</span>
+      <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 sm:p-3 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800">
+        <div className="flex items-center gap-1.5 overflow-x-auto max-w-full scrollbar-none py-0.5">
+          <span className="text-xs font-bold text-slate-400 px-1 sm:px-2 shrink-0">Payment:</span>
           {['ALL', 'Cash', 'UPI / Online', 'Credit'].map(method => (
             <button
               key={method}
               onClick={() => setFilterPayment(method)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap shrink-0 transition-all ${
                 filterPayment === method
                   ? 'bg-indigo-600 text-white shadow-xs'
                   : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900'
