@@ -7,7 +7,7 @@ import { Table } from '../components/ui/Table';
 import { Truck, Plus, Trash2, Calendar, Building2, Package } from 'lucide-react';
 
 export const PurchaseManagement = () => {
-  const { data, recordPurchaseEntry, deleteItem, isLoading } = useApp();
+  const { data, recordPurchaseEntry, deleteItem, showConfirmDialog, isLoading } = useApp();
   const [modalOpen, setModalOpen] = useState(false);
 
   // Form State
@@ -169,7 +169,14 @@ export const PurchaseManagement = () => {
           variant="ghost"
           className="text-rose-500 hover:text-rose-600"
           onClick={() => {
-            if (confirm(`Delete purchase record #${r.materialNumber}?`)) deleteItem('Purchases', r.id, 'Purchase');
+            showConfirmDialog({
+              title: 'Delete Purchase Record',
+              itemName: r.materialNumber || r.id,
+              message: `Are you sure you want to permanently delete purchase invoice #${r.materialNumber || r.id}?`,
+              type: 'delete',
+              confirmText: 'Yes, Delete',
+              onConfirm: () => deleteItem('Purchases', r.id, 'Purchase')
+            });
           }}
         >
           <Trash2 className="w-3.5 h-3.5" />

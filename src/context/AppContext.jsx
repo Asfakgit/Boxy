@@ -46,6 +46,36 @@ export const AppProvider = ({ children }) => {
   // Notifications / Toasts
   const [toasts, setToasts] = useState([]);
 
+  // Global In-UI Confirmation Popup Modal
+  const [confirmDialog, setConfirmDialog] = useState(null);
+
+  const showConfirmDialog = useCallback(({
+    title,
+    message,
+    itemName,
+    confirmText,
+    cancelText = 'Cancel',
+    type = 'delete', // 'delete', 'update', 'danger', 'info'
+    onConfirm
+  }) => {
+    setConfirmDialog({
+      title,
+      message,
+      itemName,
+      confirmText: confirmText || (type === 'delete' || type === 'danger' ? 'Yes, Delete' : 'Yes, Update'),
+      cancelText,
+      type,
+      onConfirm: async () => {
+        if (onConfirm) await onConfirm();
+        setConfirmDialog(null);
+      }
+    });
+  }, []);
+
+  const closeConfirmDialog = useCallback(() => {
+    setConfirmDialog(null);
+  }, []);
+
   const showToast = useCallback((message, type = 'success') => {
     const id = Date.now();
     setToasts(prev => [...prev, { id, message, type }]);
@@ -699,7 +729,10 @@ export const AppProvider = ({ children }) => {
       forceSyncFromSheets,
       toasts,
       showToast,
-      removeToast
+      removeToast,
+      confirmDialog,
+      showConfirmDialog,
+      closeConfirmDialog
     }}>
       {children}
     </AppContext.Provider>

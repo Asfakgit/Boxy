@@ -7,7 +7,7 @@ import { Table } from '../components/ui/Table';
 import { Users, Plus, Edit2, Trash2, DollarSign, Store, Phone } from 'lucide-react';
 
 export const CustomerManagement = () => {
-  const { data, saveItem, deleteItem, recordCustomerSettlement, isLoading } = useApp();
+  const { data, saveItem, deleteItem, recordCustomerSettlement, showConfirmDialog, isLoading } = useApp();
   const [modalOpen, setModalOpen] = useState(false);
   const [settleModalOpen, setSettleModalOpen] = useState(false);
   const [editingCust, setEditingCust] = useState(null);
@@ -66,8 +66,23 @@ export const CustomerManagement = () => {
       totalPurchases: editingCust ? Number(editingCust.totalPurchases || 0) : 0
     };
 
-    await saveItem('Customers', payload, 'Customer');
-    setModalOpen(false);
+    const executeSave = async () => {
+      await saveItem('Customers', payload, 'Customer');
+      setModalOpen(false);
+    };
+
+    if (editingCust) {
+      showConfirmDialog({
+        title: 'Update Customer',
+        itemName: name,
+        message: `Are you sure you want to save changes to customer "${name}"?`,
+        type: 'update',
+        confirmText: 'Yes, Save Changes',
+        onConfirm: executeSave
+      });
+    } else {
+      await executeSave();
+    }
   };
 
   const openSettleModal = (cust) => {
@@ -148,7 +163,14 @@ export const CustomerManagement = () => {
             variant="ghost"
             className="text-rose-500 hover:text-rose-600"
             onClick={() => {
-              if (confirm(`Delete customer "${r.name}"?`)) deleteItem('Customers', r.id, 'Customer');
+              showConfirmDialog({
+                title: 'Delete Customer',
+                itemName: r.name,
+                message: `Are you sure you want to permanently delete customer "${r.name}"? This cannot be undone.`,
+                type: 'delete',
+                confirmText: 'Yes, Delete',
+                onConfirm: () => deleteItem('Customers', r.id, 'Customer')
+              });
             }}
           >
             <Trash2 className="w-3.5 h-3.5" />

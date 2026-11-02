@@ -26,7 +26,7 @@ import {
 } from 'lucide-react';
 
 export const ItemManagement = () => {
-  const { data, saveItem, deleteItem, adjustStock, isLoading } = useApp();
+  const { data, saveItem, deleteItem, adjustStock, showConfirmDialog, isLoading } = useApp();
   const [activeTab, setActiveTab] = useState('stock'); // 'stock', 'products', 'materials', 'categories'
   const [modalOpen, setModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
@@ -393,40 +393,58 @@ export const ItemManagement = () => {
   const handleSave = async (e) => {
     e.preventDefault();
     const isProduct = editingItem._itemType === 'products';
-    const sheetName = isProduct ? 'Products' : 'Raw Materials';
-    const payload = { ...editingItem };
-    delete payload._itemType;
+    const isUpdate = Boolean(editingItem.id || editingItem.code);
+    const label = isProduct ? 'Menu Item' : 'Raw Material';
 
-    if (!payload.id && !payload.code) {
-      if (isProduct) payload.code = 'PRD-' + Math.floor(Math.random() * 9000 + 1000);
-      else payload.id = 'RM-' + Math.floor(Math.random() * 9000 + 1000);
-    }
+    const executeSave = async () => {
+      const sheetName = isProduct ? 'Products' : 'Raw Materials';
+      const payload = { ...editingItem };
+      delete payload._itemType;
 
-    if (isProduct) {
-      payload.sellingPrice = Number(payload.sellingPrice || 0);
-      payload.costPrice = Number(payload.costPrice || 0);
-      payload.currentStock = Number(payload.currentStock || 0);
-      payload.minStock = Number(payload.minStock || 5);
-      payload.unit = payload.unit || 'portion';
-      payload.status = payload.status || 'Active';
+      if (!payload.id && !payload.code) {
+        if (isProduct) payload.code = 'PRD-' + Math.floor(Math.random() * 9000 + 1000);
+        else payload.id = 'RM-' + Math.floor(Math.random() * 9000 + 1000);
+      }
+
+      if (isProduct) {
+        payload.sellingPrice = Number(payload.sellingPrice || 0);
+        payload.costPrice = Number(payload.costPrice || 0);
+        payload.currentStock = Number(payload.currentStock || 0);
+        payload.minStock = Number(payload.minStock || 5);
+        payload.unit = payload.unit || 'portion';
+        payload.status = payload.status || 'Active';
+      } else {
+        payload.currentStock = Number(payload.currentStock || 0);
+        let cost = Number(payload.costPrice || 0);
+        let total = Number(payload.totalAmount || 0);
+        if (cost === 0 && total > 0 && payload.currentStock > 0) {
+          cost = Number((total / payload.currentStock).toFixed(2));
+        }
+        if (total === 0 && cost > 0 && payload.currentStock > 0) {
+          total = Number((payload.currentStock * cost).toFixed(2));
+        }
+        payload.costPrice = cost;
+        payload.totalAmount = total;
+        payload.minStock = Number(payload.minStock || 5);
+        payload.unit = payload.unit || 'kg';
+      }
+
+      await saveItem(sheetName, payload, label);
+      setModalOpen(false);
+    };
+
+    if (isUpdate) {
+      showConfirmDialog({
+        title: `Update ${label}`,
+        itemName: editingItem.name,
+        message: `Are you sure you want to save updates to "${editingItem.name}"?`,
+        type: 'update',
+        confirmText: 'Yes, Save Changes',
+        onConfirm: executeSave
+      });
     } else {
-      payload.currentStock = Number(payload.currentStock || 0);
-      let cost = Number(payload.costPrice || 0);
-      let total = Number(payload.totalAmount || 0);
-      if (cost === 0 && total > 0 && payload.currentStock > 0) {
-        cost = Number((total / payload.currentStock).toFixed(2));
-      }
-      if (total === 0 && cost > 0 && payload.currentStock > 0) {
-        total = Number((payload.currentStock * cost).toFixed(2));
-      }
-      payload.costPrice = cost;
-      payload.totalAmount = total;
-      payload.minStock = Number(payload.minStock || 5);
-      payload.unit = payload.unit || 'kg';
+      await executeSave();
     }
-
-    await saveItem(sheetName, payload, isProduct ? 'Menu Item' : 'Raw Material');
-    setModalOpen(false);
   };
 
   return (
@@ -660,7 +678,14 @@ export const ItemManagement = () => {
                       onClick={() => {
                         const sheet = r.type === 'product' ? 'Products' : 'Raw Materials';
                         const label = r.type === 'product' ? 'Menu Item' : 'Raw Material';
-                        if (confirm(`Delete ${label} "${r.name}"?`)) deleteItem(sheet, r.code, label);
+                        showConfirmDialog({
+                          title: `Delete ${label}`,
+                          itemName: r.name,
+                          message: `Are you sure you want to permanently delete "${r.name}"? This action cannot be undone.`,
+                          type: 'delete',
+                          confirmText: 'Yes, Delete',
+                          onConfirm: () => deleteItem(sheet, r.code, label)
+                        });
                       }}
                       title="Delete Item"
                       className="p-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-500 hover:text-rose-600 transition-colors"
@@ -764,7 +789,14 @@ export const ItemManagement = () => {
                     </button>
                     <button
                       onClick={() => {
-                        if (confirm(`Delete menu item "${r.name}"?`)) deleteItem('Products', r.code, 'Menu Item');
+                        showConfirmDialog({
+                          title: 'Delete Menu Item',
+                          itemName: r.name,
+                          message: `Are you sure you want to permanently delete menu item "${r.name}"? This action cannot be undone.`,
+                          type: 'delete',
+                          confirmText: 'Yes, Delete',
+                          onConfirm: () => deleteItem('Products', r.code, 'Menu Item')
+                        });
                       }}
                       title="Delete Item"
                       className="p-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-500 hover:text-rose-600 transition-colors"
@@ -861,7 +893,14 @@ export const ItemManagement = () => {
                     </button>
                     <button
                       onClick={() => {
-                        if (confirm(`Delete raw material "${r.name}"?`)) deleteItem('Raw Materials', r.id, 'Raw Material');
+                        showConfirmDialog({
+                          title: 'Delete Raw Material',
+                          itemName: r.name,
+                          message: `Are you sure you want to permanently delete raw material "${r.name}"? This action cannot be undone.`,
+                          type: 'delete',
+                          confirmText: 'Yes, Delete',
+                          onConfirm: () => deleteItem('Raw Materials', r.id, 'Raw Material')
+                        });
                       }}
                       title="Delete Item"
                       className="p-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-500 hover:text-rose-600 transition-colors"

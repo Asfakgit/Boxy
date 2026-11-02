@@ -4,6 +4,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useApp } from '../../context/AppContext';
 import { useAuth } from '../../context/AuthContext';
 import { ToastContainer } from '../ui/Toast';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
 import logoImg from '../../assets/logo.jpeg';
 import {
   LayoutDashboard,
@@ -84,7 +85,7 @@ const PAGE_ICONS = {
 
 export const Layout = ({ children }) => {
   const { theme, toggleTheme } = useTheme();
-  const { data, refreshData, isSyncing } = useApp();
+  const { data, refreshData, isSyncing, confirmDialog, showConfirmDialog, closeConfirmDialog } = useApp();
   const { currentUser, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const logoSrc = data?.settings?.logo || logoImg;
@@ -225,7 +226,13 @@ export const Layout = ({ children }) => {
               <button
                 type="button"
                 onClick={() => {
-                  if (confirm('Are you sure you want to log out of Boxy ERP?')) logout();
+                  showConfirmDialog({
+                    title: 'Log Out of Boxy',
+                    message: 'Are you sure you want to sign out of your session?',
+                    type: 'danger',
+                    confirmText: 'Yes, Sign Out',
+                    onConfirm: logout
+                  });
                 }}
                 title="Log Out"
                 className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
@@ -244,7 +251,13 @@ export const Layout = ({ children }) => {
               <button
                 type="button"
                 onClick={() => {
-                  if (confirm('Are you sure you want to log out of Boxy ERP?')) logout();
+                  showConfirmDialog({
+                    title: 'Log Out of Boxy',
+                    message: 'Are you sure you want to sign out of your session?',
+                    type: 'danger',
+                    confirmText: 'Yes, Sign Out',
+                    onConfirm: logout
+                  });
                 }}
                 title="Log Out"
                 className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
@@ -438,7 +451,13 @@ export const Layout = ({ children }) => {
                   type="button"
                   onClick={() => {
                     setMobileMenuOpen(false);
-                    if (confirm('Are you sure you want to log out of Boxy ERP?')) logout();
+                    showConfirmDialog({
+                      title: 'Log Out of Boxy',
+                      message: 'Are you sure you want to sign out of your session?',
+                      type: 'danger',
+                      confirmText: 'Yes, Sign Out',
+                      onConfirm: logout
+                    });
                   }}
                   className="px-2.5 py-1 rounded-lg text-xs font-bold text-rose-600 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 transition-colors flex items-center gap-1"
                 >
@@ -456,6 +475,15 @@ export const Layout = ({ children }) => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Global In-UI Confirm Popup Dialog */}
+      {confirmDialog && (
+        <ConfirmDialog
+          isOpen={Boolean(confirmDialog)}
+          onClose={closeConfirmDialog}
+          {...confirmDialog}
+        />
       )}
 
       {/* Global Toast Banner */}
