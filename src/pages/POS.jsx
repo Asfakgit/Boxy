@@ -17,8 +17,7 @@ import {
   CheckCircle2,
   UserCheck,
   X,
-  RotateCcw,
-  Sliders
+  RotateCcw
 } from 'lucide-react';
 
 export const POS = () => {
@@ -48,27 +47,6 @@ export const POS = () => {
   const [receiptModalOpen, setReceiptModalOpen] = useState(false);
   const [customerModalOpen, setCustomerModalOpen] = useState(false);
   const [lastOrder, setLastOrder] = useState(null);
-  const [qtyModalProduct, setQtyModalProduct] = useState(null);
-  const [customQtyInput, setCustomQtyInput] = useState('1');
-
-  const handleOpenQtyModal = (product) => {
-    const existingInCart = cart.find(i => i.productCode === product.code);
-    setQtyModalProduct(product);
-    setCustomQtyInput(existingInCart ? String(existingInCart.quantity) : '1');
-  };
-
-  const handleConfirmQtyModal = (e) => {
-    e.preventDefault();
-    if (!qtyModalProduct) return;
-    const qty = Math.max(1, parseInt(customQtyInput, 10) || 1);
-    const existing = cart.find(i => i.productCode === qtyModalProduct.code);
-    if (existing) {
-      setCartQuantity(qtyModalProduct.code, qty);
-    } else {
-      addToCart(qtyModalProduct, qty);
-    }
-    setQtyModalProduct(null);
-  };
 
   const currency = data?.settings?.currencySymbol || '₹';
   const taxRate = Number(data?.settings?.taxRate ?? 5);
@@ -255,15 +233,6 @@ export const POS = () => {
                           )}
                         </div>
                       )}
-                      {inCart && (
-                        <div 
-                          onClick={(e) => { e.stopPropagation(); handleOpenQtyModal(prod); }}
-                          title="Click to change quantity"
-                          className="absolute top-1.5 right-1.5 px-2 py-0.5 rounded-full bg-indigo-600 text-white text-[10px] font-black shadow-xs hover:bg-indigo-700 cursor-pointer"
-                        >
-                          {inCart.quantity} in cart
-                        </div>
-                      )}
                     </div>
                     <h4 className="font-bold text-xs text-slate-900 dark:text-white line-clamp-1">{prod.name}</h4>
                     <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono mt-0.5">
@@ -274,56 +243,18 @@ export const POS = () => {
 
                   <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100 dark:border-slate-800">
                     <span className="font-black text-sm text-slate-900 dark:text-white">{fmt(prod.sellingPrice)}</span>
-                    <div className="flex items-center gap-1.5">
-                      {/* Direct Enter Qty Button */}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenQtyModal(prod);
-                        }}
-                        title="Enter custom sale quantity"
-                        className="px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 text-[11px] font-bold border border-slate-200/80 dark:border-slate-700 flex items-center gap-1 transition-all"
-                      >
-                        <Sliders className="w-3 h-3" />
-                        <span>Qty</span>
-                      </button>
-
-                      {inCart ? (
-                        <>
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); updateCartQuantity(prod.code, -1); }}
-                            className="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 flex items-center justify-center hover:bg-rose-500 hover:text-white transition-colors"
-                          >
-                            <Minus className="w-3 h-3" />
-                          </button>
-                          <span 
-                            onClick={(e) => { e.stopPropagation(); handleOpenQtyModal(prod); }}
-                            title="Click to change quantity"
-                            className="text-xs font-bold w-4 text-center cursor-pointer hover:text-indigo-600 underline decoration-dotted"
-                          >
-                            {inCart.quantity}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); addToCart(prod); }}
-                            className="w-6 h-6 rounded-lg bg-indigo-600 text-white flex items-center justify-center hover:bg-indigo-700 transition-colors"
-                          >
-                            <Plus className="w-3 h-3" />
-                          </button>
-                        </>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); addToCart(prod); }}
-                          className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center hover:bg-indigo-600 hover:text-white transition-colors"
-                          title="Add 1 to cart"
-                        >
-                          <Plus className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); addToCart(prod); }}
+                      className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${
+                        inCart 
+                          ? 'bg-indigo-600 text-white shadow-2xs' 
+                          : 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-600 hover:text-white'
+                      }`}
+                      title="Add to cart"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
               );
@@ -689,84 +620,6 @@ export const POS = () => {
               </Button>
             </div>
           </div>
-        </Modal>
-      )}
-
-      {/* ENTER QUANTITY MODAL */}
-      {qtyModalProduct && (
-        <Modal
-          isOpen={Boolean(qtyModalProduct)}
-          onClose={() => setQtyModalProduct(null)}
-          title={`Enter Quantity — ${qtyModalProduct.name}`}
-        >
-          <form onSubmit={handleConfirmQtyModal} className="space-y-4 pt-2">
-            <div className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200/80 dark:border-slate-700">
-              {qtyModalProduct.image ? (
-                <img src={qtyModalProduct.image} alt="" className="w-12 h-12 rounded-xl object-cover border shrink-0" />
-              ) : (
-                <img src="/logo.jpg" alt="" className="w-12 h-12 rounded-xl object-cover ring-1 ring-amber-400/40 shrink-0 shadow-xs" />
-              )}
-              <div className="flex-1 min-w-0">
-                <h4 className="font-extrabold text-sm text-slate-900 dark:text-white truncate">{qtyModalProduct.name}</h4>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <span className="font-mono text-xs text-slate-400">{qtyModalProduct.code}</span>
-                  <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">{fmt(qtyModalProduct.sellingPrice)} each</span>
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                Type Sale Quantity
-              </label>
-              <input
-                type="number"
-                min="1"
-                step="1"
-                required
-                autoFocus
-                value={customQtyInput}
-                onChange={(e) => setCustomQtyInput(e.target.value)}
-                placeholder="e.g. 5, 10, 25..."
-                className="w-full px-4 py-3 text-2xl font-black text-center text-indigo-600 bg-white dark:bg-slate-900 border-2 border-indigo-500/50 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/20 shadow-inner"
-              />
-
-              {/* Rapid One-Touch Presets */}
-              <div className="grid grid-cols-6 gap-2 mt-3">
-                {[1, 2, 3, 5, 10, 12, 15, 20, 25, 30, 50, 100].map(val => (
-                  <button
-                    key={val}
-                    type="button"
-                    onClick={() => setCustomQtyInput(String(val))}
-                    className={`py-2 text-xs font-black rounded-xl transition-all ${
-                      Number(customQtyInput) === val
-                        ? 'bg-indigo-600 text-white shadow-xs'
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
-                    }`}
-                  >
-                    {val}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Live Calculated Subtotal */}
-            <div className="flex items-center justify-between p-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-900 dark:text-indigo-200 border border-indigo-100 dark:border-indigo-900/50">
-              <span className="text-xs font-bold">Line Subtotal ({Number(customQtyInput) || 0} × {fmt(qtyModalProduct.sellingPrice)})</span>
-              <span className="text-base font-black text-indigo-600 dark:text-indigo-400">
-                {fmt((Number(customQtyInput) || 0) * Number(qtyModalProduct.sellingPrice || 0))}
-              </span>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <Button type="button" variant="ghost" onClick={() => setQtyModalProduct(null)}>
-                Cancel
-              </Button>
-              <Button type="submit" variant="primary" className="bg-indigo-600 hover:bg-indigo-700">
-                Set {customQtyInput || 1} in Cart
-              </Button>
-            </div>
-          </form>
         </Modal>
       )}
     </div>
