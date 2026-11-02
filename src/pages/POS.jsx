@@ -421,60 +421,6 @@ export const POS = () => {
                   </div>
                 </div>
 
-                {/* GST / Tax (Default 0%, Only added when selected) */}
-                <div>
-                  <div className="flex items-center justify-between text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                    <div className="flex items-center gap-1.5">
-                      <span>GST / Tax</span>
-                      {taxRate > 0 ? (
-                        <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded">
-                          +{taxRate}%
-                        </span>
-                      ) : (
-                        <span className="text-[10px] text-slate-400">
-                          (Default: 0% / No GST)
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1">
-                      {[0, 5, 12, 18].map(pct => (
-                        <button
-                          key={pct}
-                          type="button"
-                          onClick={() => setPosTaxRate(pct)}
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
-                            taxRate === pct
-                              ? 'bg-indigo-600 text-white shadow-2xs'
-                              : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
-                          }`}
-                        >
-                          {pct === 0 ? '0%' : `${pct}%`}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  {taxRate > 0 && (
-                    <div className="flex items-center gap-2 mt-1">
-                      <input
-                        type="number"
-                        min="0"
-                        step="any"
-                        value={posTaxRate}
-                        onChange={(e) => setPosTaxRate(Math.max(0, Number(e.target.value)))}
-                        placeholder="Custom GST %"
-                        className="w-full px-3 py-1 text-xs bg-slate-50 dark:bg-slate-800 border border-indigo-200 dark:border-indigo-900/60 rounded-xl font-bold text-indigo-600 dark:text-indigo-400"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setPosTaxRate(0)}
-                        className="text-[10px] font-bold text-rose-500 hover:underline shrink-0"
-                      >
-                        Remove GST
-                      </button>
-                    </div>
-                  )}
-                </div>
-
                 {/* Payment Methods */}
                 <div>
                   <label className="block text-[11px] font-bold uppercase text-slate-400 mb-1.5">Payment Method</label>
@@ -508,27 +454,75 @@ export const POS = () => {
                   </div>
                 </div>
 
-                {/* Financial Summary */}
-                <div className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
-                  <div className="flex justify-between text-slate-500">
+                {/* Financial Summary & Payable Section */}
+                <div className="space-y-2 pt-2.5 border-t border-slate-100 dark:border-slate-800 text-xs">
+                  <div className="flex justify-between text-slate-500 font-medium">
                     <span>Subtotal:</span>
-                    <span>{fmt(subtotal)}</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-200">{fmt(subtotal)}</span>
                   </div>
+
                   {discountVal > 0 && (
                     <div className="flex justify-between text-emerald-600 font-semibold">
                       <span>Discount:</span>
                       <span>-{fmt(discountVal)}</span>
                     </div>
                   )}
-                  {taxRate > 0 && (
-                    <div className="flex justify-between text-slate-500">
-                      <span>Tax / GST ({taxRate}%):</span>
-                      <span>{fmt(taxAmount)}</span>
+
+                  {/* GST Level Control in Payable Section */}
+                  <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-extrabold text-[11px] text-slate-700 dark:text-slate-300">GST Level:</span>
+                        <div className="flex items-center gap-1">
+                          {[0, 5, 12, 18].map(pct => (
+                            <button
+                              key={pct}
+                              type="button"
+                              onClick={() => setPosTaxRate(pct)}
+                              className={`px-1.5 py-0.5 rounded-md text-[10px] font-black transition-all ${
+                                taxRate === pct
+                                  ? 'bg-indigo-600 text-white shadow-2xs'
+                                  : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100'
+                              }`}
+                            >
+                              {pct}%
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Custom % input */}
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="any"
+                          value={posTaxRate === 0 ? '' : posTaxRate}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === '') setPosTaxRate(0);
+                            else setPosTaxRate(Math.max(0, Number(val)));
+                          }}
+                          placeholder="0"
+                          className="w-12 px-1.5 py-0.5 text-xs text-right font-black bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-indigo-600 dark:text-indigo-400 focus:ring-1 focus:ring-indigo-500"
+                        />
+                        <span className="text-[11px] font-black text-slate-400">%</span>
+                      </div>
                     </div>
-                  )}
-                  <div className="flex justify-between text-base font-black text-slate-900 dark:text-white pt-1 border-t border-slate-100 dark:border-slate-800">
+
+                    {taxRate > 0 && (
+                      <div className="flex justify-between items-center text-xs font-bold text-emerald-600 dark:text-emerald-400 pt-1.5 border-t border-slate-200/60 dark:border-slate-700/60">
+                        <span>Tax / GST ({taxRate}%):</span>
+                        <span>+{fmt(taxAmount)}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Total Payable */}
+                  <div className="flex justify-between items-baseline text-base font-black text-slate-900 dark:text-white pt-2 border-t border-slate-200 dark:border-slate-700">
                     <span>Total Payable:</span>
-                    <span className="text-indigo-600 dark:text-indigo-400">{fmt(totalAmount)}</span>
+                    <span className="text-xl font-black text-indigo-600 dark:text-indigo-400">{fmt(totalAmount)}</span>
                   </div>
                 </div>
 
