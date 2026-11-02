@@ -1,6 +1,5 @@
 import { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
-import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Table } from '../components/ui/Table';
 import { Modal } from '../components/ui/Modal';
@@ -329,7 +328,7 @@ export const ItemManagement = () => {
       </div>
 
       {/* Main Table Views */}
-      <Card noPadding>
+      <div className="space-y-4">
         {activeTab === 'stock' && (
           <Table
             columns={[
@@ -670,7 +669,7 @@ export const ItemManagement = () => {
             emptyMessage="No raw materials registered yet. Add chicken, oil, flour, etc.!"
           />
         )}
-      </Card>
+      </div>
 
       {/* LOOK / VIEW ITEM DETAILS MODAL */}
       {viewingItem && (

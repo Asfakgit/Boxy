@@ -49,7 +49,7 @@ export const Table = ({
       )}
 
       {/* Desktop / Tablet Table View */}
-      <div className={`hidden ${cardRender ? 'md:block' : 'block'} bg-white dark:bg-slate-900/90 rounded-2xl border border-slate-200/80 dark:border-slate-800/80 shadow-xs overflow-hidden`}>
+      <div className={`${cardRender ? 'hidden md:block' : 'block'} bg-white dark:bg-slate-900/90 rounded-2xl border border-slate-200/80 dark:border-slate-800/80 shadow-xs overflow-hidden`}>
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>

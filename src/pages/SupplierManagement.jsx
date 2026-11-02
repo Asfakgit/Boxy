@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Table } from '../components/ui/Table';
@@ -187,14 +186,12 @@ export const SupplierManagement = () => {
       </div>
 
       {/* Suppliers Table */}
-      <Card noPadding>
-        <Table
-          columns={columns}
-          data={suppliers}
-          searchPlaceholder="Search suppliers by name, phone..."
-          emptyMessage="No suppliers registered yet. Add your first vendor above!"
-        />
-      </Card>
+      <Table
+        columns={columns}
+        data={suppliers}
+        searchPlaceholder="Search suppliers by name, phone..."
+        emptyMessage="No suppliers registered yet. Add your first vendor above!"
+      />
 
       {/* Add / Edit Supplier Modal */}
       {modalOpen && (

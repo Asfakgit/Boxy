@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Table } from '../components/ui/Table';
@@ -256,14 +255,12 @@ export const TransactionsLedger = () => {
       </div>
 
       {/* Ledger Table */}
-      <Card noPadding>
-        <Table
-          columns={columns}
-          data={filtered}
-          searchPlaceholder="Search by reference, party, notes..."
-          emptyMessage="No transactions recorded yet."
-        />
-      </Card>
+      <Table
+        columns={columns}
+        data={filtered}
+        searchPlaceholder="Search by reference, party, notes..."
+        emptyMessage="No transactions recorded yet."
+      />
 
       {/* Record Expense Modal */}
       <Modal

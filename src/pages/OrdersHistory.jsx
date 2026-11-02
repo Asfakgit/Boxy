@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
@@ -173,14 +172,12 @@ export const OrdersHistory = () => {
       </div>
 
       {/* Orders Table */}
-      <Card noPadding>
-        <Table
-          columns={columns}
-          data={filteredSales}
-          searchPlaceholder="Search invoices, customer names..."
-          emptyMessage="No sales recorded yet."
-        />
-      </Card>
+      <Table
+        columns={columns}
+        data={filteredSales}
+        searchPlaceholder="Search invoices, customer names..."
+        emptyMessage="No sales recorded yet."
+      />
 
       {/* Receipt Preview Modal */}
       {receiptModalOpen && selectedOrder && (

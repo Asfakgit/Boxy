@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
@@ -198,14 +197,12 @@ export const CustomerManagement = () => {
       </div>
 
       {/* Customers Table */}
-      <Card noPadding>
-        <Table
-          columns={columns}
-          data={customers}
-          searchPlaceholder="Search customers by name, shop, phone..."
-          emptyMessage="No customers found. Add your first customer above!"
-        />
-      </Card>
+      <Table
+        columns={columns}
+        data={customers}
+        searchPlaceholder="Search customers by name, shop, phone..."
+        emptyMessage="No customers found. Add your first customer above!"
+      />
 
       {/* Add / Edit Customer Modal */}
       {modalOpen && (

@@ -1,6 +1,5 @@
 import { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
-import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
@@ -195,14 +194,12 @@ export const PurchaseManagement = () => {
       </div>
 
       {/* Table */}
-      <Card noPadding>
-        <Table
-          columns={columns}
-          data={purchases}
-          searchPlaceholder="Search purchases by vendor, invoice #..."
-          emptyMessage="No purchases recorded yet. Restock kitchen inventory above!"
-        />
-      </Card>
+      <Table
+        columns={columns}
+        data={purchases}
+        searchPlaceholder="Search purchases by vendor, invoice #..."
+        emptyMessage="No purchases recorded yet. Restock kitchen inventory above!"
+      />
 
       {/* Record Purchase Modal */}
       {modalOpen && (
