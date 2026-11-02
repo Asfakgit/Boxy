@@ -45,6 +45,7 @@ export const OrdersHistory = () => {
       `*Items Ordered:*%0a${itemsText}%0a%0a` +
       `Subtotal: ${fmt(selectedOrder.subtotal)}%0a` +
       (selectedOrder.discount > 0 ? `Discount: -${fmt(selectedOrder.discount)}%0a` : '') +
+      (Number(selectedOrder.taxAmount || 0) > 0 ? `Tax / GST: ${fmt(selectedOrder.taxAmount)}%0a` : '') +
       `*Total Paid (${selectedOrder.paymentMethod}): ${fmt(selectedOrder.totalAmount)}*%0a%0a` +
       `Thank you for ordering with Boxy Cloud Kitchen!`;
     return `https://wa.me/?text=${text}`;
@@ -226,6 +227,12 @@ export const OrdersHistory = () => {
                   <div className="flex justify-between text-slate-600">
                     <span>Discount:</span>
                     <span>-{fmt(selectedOrder.discount)}</span>
+                  </div>
+                )}
+                {Number(selectedOrder.taxAmount || 0) > 0 && (
+                  <div className="flex justify-between text-slate-600">
+                    <span>Tax / GST:</span>
+                    <span>{fmt(selectedOrder.taxAmount)}</span>
                   </div>
                 )}
                 <div className="flex justify-between font-black text-sm text-slate-900 pt-1 border-t border-slate-200">

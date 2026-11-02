@@ -25,7 +25,7 @@ export const SettingsConfiguration = () => {
 
   // Settings State
   const [currencySymbol, setCurrencySymbol] = useState(data?.settings?.currencySymbol || '₹');
-  const [taxRate, setTaxRate] = useState(String(data?.settings?.taxRate ?? '5'));
+  const [taxRate, setTaxRate] = useState(String(data?.settings?.taxRate ?? '0'));
   const [companyName, setCompanyName] = useState(data?.settings?.companyName || 'Boxy Cloud Kitchen');
   const [invoiceFooter, setInvoiceFooter] = useState(
     data?.settings?.invoiceFooter || 'Thank you for choosing Boxy Cloud Kitchen! Freshness & speed guaranteed.'
@@ -209,9 +209,10 @@ export const SettingsConfiguration = () => {
                 step="any"
                 value={taxRate}
                 onChange={(e) => setTaxRate(e.target.value)}
-                placeholder="5"
+                placeholder="0"
                 className="w-full px-3.5 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold"
               />
+              <p className="text-[11px] text-slate-400 mt-1">Default is 0%. When 0, GST is omitted from bills unless added during POS checkout.</p>
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Established Year</label>

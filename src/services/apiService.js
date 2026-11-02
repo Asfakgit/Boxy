@@ -19,6 +19,10 @@ export const getDatabase = () => {
   }
   try {
     const parsed = JSON.parse(saved);
+    if (parsed.settings && (parsed.settings.taxRate === 5 || parsed.settings.taxRate === undefined)) {
+      parsed.settings.taxRate = 0;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+    }
     return { ...INITIAL_DATA, ...parsed };
   } catch {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_DATA));

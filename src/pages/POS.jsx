@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { Button } from '../components/ui/Button';
@@ -49,7 +49,14 @@ export const POS = () => {
   const [lastOrder, setLastOrder] = useState(null);
 
   const currency = data?.settings?.currencySymbol || '₹';
-  const taxRate = Number(data?.settings?.taxRate ?? 5);
+  const defaultTaxRate = Number(data?.settings?.taxRate ?? 0);
+  const [posTaxRate, setPosTaxRate] = useState(defaultTaxRate);
+
+  useEffect(() => {
+    setPosTaxRate(Number(data?.settings?.taxRate ?? 0));
+  }, [data?.settings?.taxRate]);
+
+  const taxRate = Number(posTaxRate || 0);
   const fmt = (val) => `${currency} ${Number(val || 0).toFixed(2)}`;
 
   // Filter products by category and search
@@ -77,7 +84,7 @@ export const POS = () => {
   const subtotal = cart.reduce((sum, item) => sum + (Number(item.unitPrice || 0) * item.quantity), 0);
   const discountVal = Number(discount) || 0;
   const taxableAmount = Math.max(0, subtotal - discountVal);
-  const taxAmount = (taxableAmount * taxRate) / 100;
+  const taxAmount = taxRate > 0 ? (taxableAmount * taxRate) / 100 : 0;
   const totalAmount = taxableAmount + taxAmount;
 
   const handleCheckout = async () => {
@@ -92,6 +99,7 @@ export const POS = () => {
         customerName: selectedCustomer ? (selectedCustomer.shopName || selectedCustomer.name) : 'Walk-in Customer',
         subtotal,
         discount: discountVal,
+        taxRate,
         taxAmount,
         totalAmount,
         paymentMethod,
@@ -116,7 +124,7 @@ export const POS = () => {
       `*Items Ordered:*%0a${itemsText}%0a%0a` +
       `Subtotal: ${fmt(lastOrder.subtotal)}%0a` +
       (lastOrder.discount > 0 ? `Discount: -${fmt(lastOrder.discount)}%0a` : '') +
-      `Tax (${taxRate}%): ${fmt(lastOrder.taxAmount || 0)}%0a` +
+      (Number(lastOrder.taxAmount || 0) > 0 ? `Tax / GST (${lastOrder.taxRate || taxRate}%): ${fmt(lastOrder.taxAmount)}%0a` : '') +
       `*Total Paid (${lastOrder.paymentMethod}): ${fmt(lastOrder.totalAmount)}*%0a%0a` +
       `Thank you for ordering with Boxy Cloud Kitchen!`;
     return `https://wa.me/?text=${text}`;
@@ -405,6 +413,60 @@ export const POS = () => {
                   </div>
                 </div>
 
+                {/* GST / Tax (Default 0%, Only added when selected) */}
+                <div>
+                  <div className="flex items-center justify-between text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                    <div className="flex items-center gap-1.5">
+                      <span>GST / Tax</span>
+                      {taxRate > 0 ? (
+                        <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded">
+                          +{taxRate}%
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-slate-400">
+                          (Default: 0% / No GST)
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {[0, 5, 12, 18].map(pct => (
+                        <button
+                          key={pct}
+                          type="button"
+                          onClick={() => setPosTaxRate(pct)}
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
+                            taxRate === pct
+                              ? 'bg-indigo-600 text-white shadow-2xs'
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                          }`}
+                        >
+                          {pct === 0 ? '0%' : `${pct}%`}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {taxRate > 0 && (
+                    <div className="flex items-center gap-2 mt-1">
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={posTaxRate}
+                        onChange={(e) => setPosTaxRate(Math.max(0, Number(e.target.value)))}
+                        placeholder="Custom GST %"
+                        className="w-full px-3 py-1 text-xs bg-slate-50 dark:bg-slate-800 border border-indigo-200 dark:border-indigo-900/60 rounded-xl font-bold text-indigo-600 dark:text-indigo-400"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setPosTaxRate(0)}
+                        className="text-[10px] font-bold text-rose-500 hover:underline shrink-0"
+                      >
+                        Remove GST
+                      </button>
+                    </div>
+                  )}
+                </div>
+
                 {/* Payment Methods */}
                 <div>
                   <label className="block text-[11px] font-bold uppercase text-slate-400 mb-1.5">Payment Method</label>
@@ -579,6 +641,12 @@ export const POS = () => {
                   <div className="flex justify-between text-slate-600">
                     <span>Discount:</span>
                     <span>-{fmt(lastOrder.discount)}</span>
+                  </div>
+                )}
+                {Number(lastOrder.taxAmount || 0) > 0 && (
+                  <div className="flex justify-between text-slate-600">
+                    <span>Tax / GST ({lastOrder.taxRate || taxRate}%):</span>
+                    <span>{fmt(lastOrder.taxAmount)}</span>
                   </div>
                 )}
                 <div className="flex justify-between font-black text-sm text-slate-900 pt-1 border-t border-slate-200">
