@@ -19,6 +19,7 @@ import {
   X,
   RotateCcw
 } from 'lucide-react';
+import { printOrderReceipt, formatWhatsAppReceipt } from '../utils/receiptPrinter';
 
 export const POS = () => {
   const {
@@ -118,23 +119,11 @@ export const POS = () => {
   };
 
   const getWhatsAppShareUrl = () => {
-    if (!lastOrder) return '#';
-    const itemsText = (lastOrder.items || []).map(i => `${i.quantity}x ${i.productName} (${fmt(i.unitPrice * i.quantity)})`).join('%0a');
-    const text = `*Boxy Cloud Kitchen — Receipt*%0a` +
-      `Invoice: #${lastOrder.invoiceNumber}%0a` +
-      `Date: ${new Date(lastOrder.date).toLocaleDateString('en-GB')}%0a` +
-      `Customer: ${lastOrder.customerName}%0a%0a` +
-      `*Items Ordered:*%0a${itemsText}%0a%0a` +
-      `Subtotal: ${fmt(lastOrder.subtotal)}%0a` +
-      (lastOrder.discount > 0 ? `Discount: -${fmt(lastOrder.discount)}%0a` : '') +
-      (Number(lastOrder.taxAmount || 0) > 0 ? `Tax / GST (${lastOrder.taxRate || taxRate}%): ${fmt(lastOrder.taxAmount)}%0a` : '') +
-      `*Total Paid (${lastOrder.paymentMethod}): ${fmt(lastOrder.totalAmount)}*%0a%0a` +
-      `Thank you for ordering with Boxy Cloud Kitchen!`;
-    return `https://wa.me/?text=${text}`;
+    return formatWhatsAppReceipt(lastOrder, data?.settings);
   };
 
   const printReceipt = () => {
-    window.print();
+    printOrderReceipt(lastOrder, data?.settings);
   };
 
   return (
@@ -670,7 +659,7 @@ export const POS = () => {
                 icon={Printer}
                 onClick={printReceipt}
               >
-                Print Receipt
+                Print / Save PDF
               </Button>
               <a
                 href={getWhatsAppShareUrl()}

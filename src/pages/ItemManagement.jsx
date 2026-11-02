@@ -22,7 +22,8 @@ import {
   Tag,
   Search,
   ArrowRight,
-  Calculator
+  Calculator,
+  ChevronDown
 } from 'lucide-react';
 
 export const ItemManagement = () => {
@@ -44,6 +45,33 @@ export const ItemManagement = () => {
   const [newCategoryModalOpen, setNewCategoryModalOpen] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryType, setNewCategoryType] = useState('products');
+  const [isCustomCategoryInput, setIsCustomCategoryInput] = useState(false);
+
+  // Custom created categories cache (persisted locally so user-defined categories never disappear)
+  const [customCreatedCategories, setCustomCreatedCategories] = useState(() => {
+    try {
+      const saved = localStorage.getItem('boxy_custom_categories');
+      return saved ? JSON.parse(saved) : { products: [], materials: [] };
+    } catch {
+      return { products: [], materials: [] };
+    }
+  });
+
+  const saveCustomCategory = (name, type = 'products') => {
+    if (!name || !name.trim()) return;
+    const clean = name.trim();
+    setCustomCreatedCategories(prev => {
+      const list = prev[type] || [];
+      if (list.includes(clean)) return prev;
+      const next = { ...prev, [type]: [...list, clean] };
+      try {
+        localStorage.setItem('boxy_custom_categories', JSON.stringify(next));
+      } catch (e) {
+        console.error('Failed to cache category:', e);
+      }
+      return next;
+    });
+  };
 
   const currency = data?.settings?.currencySymbol || '₹';
   const fmt = (val) => `${currency} ${Number(val || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -157,22 +185,24 @@ export const ItemManagement = () => {
     return Array.from(map.values()).sort((a, b) => b.count - a.count);
   }, [data]);
 
-  // Unique created categories for fast lookup
+  // Unique created categories for fast lookup & selection
   const existingProductCategories = useMemo(() => {
     const set = new Set(['Dishes', 'Fast Food', 'Burgers', 'Beverages', 'Desserts', 'Shawarma']);
+    (customCreatedCategories.products || []).forEach(c => c && set.add(c.trim()));
     (data?.products || []).forEach(p => {
       if (p.category && p.category.trim()) set.add(p.category.trim());
     });
-    return Array.from(set).sort();
-  }, [data?.products]);
+    return Array.from(set).filter(Boolean).sort();
+  }, [data?.products, customCreatedCategories.products]);
 
   const existingMaterialCategories = useMemo(() => {
     const set = new Set(['Ingredients', 'Poultry', 'Meat', 'Dairy', 'Bakery', 'Vegetables', 'Spices', 'Packaging', 'Oils']);
+    (customCreatedCategories.materials || []).forEach(c => c && set.add(c.trim()));
     (data?.rawMaterials || []).forEach(m => {
       if (m.category && m.category.trim()) set.add(m.category.trim());
     });
-    return Array.from(set).sort();
-  }, [data?.rawMaterials]);
+    return Array.from(set).filter(Boolean).sort();
+  }, [data?.rawMaterials, customCreatedCategories.materials]);
 
   const filteredCategories = useMemo(() => {
     if (!categorySearch.trim()) return categoriesSummary;
@@ -202,6 +232,7 @@ export const ItemManagement = () => {
         await saveItem('Raw Materials', { ...rm, category: newName }, 'Raw Material');
       }
 
+      saveCustomCategory(newName, editingCategory.type || 'products');
       setEditingCategory(null);
     } catch (err) {
       console.error(err);
@@ -214,8 +245,10 @@ export const ItemManagement = () => {
     e.preventDefault();
     if (!newCategoryName.trim()) return;
     const name = newCategoryName.trim();
+    saveCustomCategory(name, newCategoryType);
     setNewCategoryModalOpen(false);
     handleOpenModal(null, newCategoryType);
+    setIsCustomCategoryInput(false);
     setEditingItem(prev => ({ ...prev, category: name }));
     setNewCategoryName('');
   };
@@ -246,6 +279,7 @@ export const ItemManagement = () => {
   // Open "Add / Edit" Modal
   const handleOpenModal = (item = null, forceType = null) => {
     const targetType = forceType || (activeTab === 'materials' ? 'materials' : 'products');
+    setIsCustomCategoryInput(false);
 
     if (item) {
       const rawData = item?.raw ? { ...item.raw } : { ...item };
@@ -268,11 +302,14 @@ export const ItemManagement = () => {
         _itemType: isProduct ? 'products' : 'materials'
       });
     } else {
+      const defaultProdCat = categoryFilter || existingProductCategories[0] || 'Dishes';
+      const defaultMatCat = categoryFilter || existingMaterialCategories[0] || 'Ingredients';
+
       setEditingItem(
         targetType === 'products'
           ? {
               name: '',
-              category: 'Dishes',
+              category: defaultProdCat,
               sellingPrice: '',
               costPrice: '',
               currentStock: '20',
@@ -284,7 +321,7 @@ export const ItemManagement = () => {
             }
           : {
               name: '',
-              category: 'Ingredients',
+              category: defaultMatCat,
               unit: 'kg',
               costPrice: '',
               currentStock: '',
@@ -444,6 +481,10 @@ export const ItemManagement = () => {
         payload.totalAmount = total;
         payload.minStock = Number(payload.minStock || 5);
         payload.unit = payload.unit || 'kg';
+      }
+
+      if (payload.category) {
+        saveCustomCategory(payload.category, isProduct ? 'products' : 'materials');
       }
 
       await saveItem(sheetName, payload, label);
@@ -1341,35 +1382,77 @@ export const ItemManagement = () => {
                       <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
                         Category *
                       </label>
-                      <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold">
-                        Lookup & Select
-                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const nextState = !isCustomCategoryInput;
+                          setIsCustomCategoryInput(nextState);
+                          if (nextState) {
+                            setEditingItem({ ...editingItem, category: '' });
+                          } else {
+                            setEditingItem({ ...editingItem, category: existingProductCategories[0] || 'Dishes' });
+                          }
+                        }}
+                        className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1"
+                      >
+                        {isCustomCategoryInput ? '← Select existing' : '+ Type new'}
+                      </button>
                     </div>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        list="product-categories-lookup"
-                        required
-                        value={editingItem.category || ''}
-                        onChange={(e) => setEditingItem({ ...editingItem, category: e.target.value })}
-                        placeholder="Select or type category..."
-                        className="w-full px-3.5 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-slate-800 dark:text-white"
-                      />
-                      <datalist id="product-categories-lookup">
-                        {existingProductCategories.map(cat => (
-                          <option key={cat} value={cat}>{cat}</option>
-                        ))}
-                      </datalist>
-                    </div>
+
+                    {isCustomCategoryInput ? (
+                      <div className="relative">
+                        <input
+                          type="text"
+                          required
+                          autoFocus
+                          value={editingItem.category || ''}
+                          onChange={(e) => setEditingItem({ ...editingItem, category: e.target.value })}
+                          placeholder="Type new category name..."
+                          className="w-full px-3.5 py-2.5 text-sm bg-white dark:bg-slate-800 border-2 border-indigo-500 rounded-xl font-bold text-slate-900 dark:text-white"
+                        />
+                        <span className="text-[10px] text-slate-400 mt-1 block">Type custom category name</span>
+                      </div>
+                    ) : (
+                      <div className="relative">
+                        <select
+                          required
+                          value={editingItem.category || ''}
+                          onChange={(e) => {
+                            if (e.target.value === '__NEW__') {
+                              setIsCustomCategoryInput(true);
+                              setEditingItem({ ...editingItem, category: '' });
+                            } else {
+                              setEditingItem({ ...editingItem, category: e.target.value });
+                            }
+                          }}
+                          className="w-full px-3.5 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-slate-800 dark:text-white appearance-none cursor-pointer pr-9 focus:ring-2 focus:ring-indigo-500"
+                        >
+                          <option value="" disabled>-- Select Created Category --</option>
+                          {existingProductCategories.map(cat => (
+                            <option key={cat} value={cat}>
+                              {cat}
+                            </option>
+                          ))}
+                          <option value="__NEW__">➕ + Type New Category...</option>
+                        </select>
+                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-400">
+                          <ChevronDown className="w-4 h-4" />
+                        </div>
+                      </div>
+                    )}
+
                     {/* Quick Category Chips from Created Categories */}
                     <div className="flex flex-wrap gap-1 mt-1.5 max-h-16 overflow-y-auto">
                       {existingProductCategories.map(cat => (
                         <button
                           key={cat}
                           type="button"
-                          onClick={() => setEditingItem({ ...editingItem, category: cat })}
+                          onClick={() => {
+                            setIsCustomCategoryInput(false);
+                            setEditingItem({ ...editingItem, category: cat });
+                          }}
                           className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all ${
-                            (editingItem.category || '').trim().toLowerCase() === cat.toLowerCase()
+                            !isCustomCategoryInput && (editingItem.category || '').trim().toLowerCase() === cat.toLowerCase()
                               ? 'bg-indigo-600 text-white shadow-2xs'
                               : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
                           }`}
@@ -1491,34 +1574,77 @@ export const ItemManagement = () => {
                       <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
                         Category *
                       </label>
-                      <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold">
-                        Lookup & Select
-                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const nextState = !isCustomCategoryInput;
+                          setIsCustomCategoryInput(nextState);
+                          if (nextState) {
+                            setEditingItem({ ...editingItem, category: '' });
+                          } else {
+                            setEditingItem({ ...editingItem, category: existingMaterialCategories[0] || 'Ingredients' });
+                          }
+                        }}
+                        className="text-[11px] font-bold text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1"
+                      >
+                        {isCustomCategoryInput ? '← Select existing' : '+ Type new'}
+                      </button>
                     </div>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        list="material-categories-lookup"
-                        value={editingItem.category || ''}
-                        onChange={(e) => setEditingItem({ ...editingItem, category: e.target.value })}
-                        placeholder="Select or type category..."
-                        className="w-full px-3.5 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-slate-800 dark:text-white"
-                      />
-                      <datalist id="material-categories-lookup">
-                        {existingMaterialCategories.map(cat => (
-                          <option key={cat} value={cat}>{cat}</option>
-                        ))}
-                      </datalist>
-                    </div>
+
+                    {isCustomCategoryInput ? (
+                      <div className="relative">
+                        <input
+                          type="text"
+                          required
+                          autoFocus
+                          value={editingItem.category || ''}
+                          onChange={(e) => setEditingItem({ ...editingItem, category: e.target.value })}
+                          placeholder="Type raw material category..."
+                          className="w-full px-3.5 py-2.5 text-sm bg-white dark:bg-slate-800 border-2 border-amber-500 rounded-xl font-bold text-slate-900 dark:text-white"
+                        />
+                        <span className="text-[10px] text-slate-400 mt-1 block">Type custom raw material category</span>
+                      </div>
+                    ) : (
+                      <div className="relative">
+                        <select
+                          required
+                          value={editingItem.category || ''}
+                          onChange={(e) => {
+                            if (e.target.value === '__NEW__') {
+                              setIsCustomCategoryInput(true);
+                              setEditingItem({ ...editingItem, category: '' });
+                            } else {
+                              setEditingItem({ ...editingItem, category: e.target.value });
+                            }
+                          }}
+                          className="w-full px-3.5 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-slate-800 dark:text-white appearance-none cursor-pointer pr-9 focus:ring-2 focus:ring-amber-500"
+                        >
+                          <option value="" disabled>-- Select Created Category --</option>
+                          {existingMaterialCategories.map(cat => (
+                            <option key={cat} value={cat}>
+                              {cat}
+                            </option>
+                          ))}
+                          <option value="__NEW__">➕ + Type New Category...</option>
+                        </select>
+                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-400">
+                          <ChevronDown className="w-4 h-4" />
+                        </div>
+                      </div>
+                    )}
+
                     {/* Quick Category Chips from Created Categories */}
                     <div className="flex flex-wrap gap-1 mt-1.5 max-h-16 overflow-y-auto">
                       {existingMaterialCategories.map(cat => (
                         <button
                           key={cat}
                           type="button"
-                          onClick={() => setEditingItem({ ...editingItem, category: cat })}
+                          onClick={() => {
+                            setIsCustomCategoryInput(false);
+                            setEditingItem({ ...editingItem, category: cat });
+                          }}
                           className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all ${
-                            (editingItem.category || '').trim().toLowerCase() === cat.toLowerCase()
+                            !isCustomCategoryInput && (editingItem.category || '').trim().toLowerCase() === cat.toLowerCase()
                               ? 'bg-amber-600 text-white shadow-2xs'
                               : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
                           }`}

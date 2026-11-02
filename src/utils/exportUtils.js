@@ -1,5 +1,27 @@
 import Papa from 'papaparse';
 
+export const prepareSalesDataForCSV = (sales = []) => {
+  return sales.map(s => {
+    const itemsSummary = s.itemsSummary || (Array.isArray(s.items) && s.items.length > 0 
+      ? s.items.map(i => `${i.quantity}x ${i.productName || i.name}`).join(', ') 
+      : 'General POS Sale');
+
+    return {
+      'Invoice #': s.invoiceNumber || '',
+      'Date': s.date ? new Date(s.date).toLocaleDateString('en-GB') : '',
+      'Time': s.date ? new Date(s.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
+      'Customer': s.customerName || 'Walk-in Customer',
+      'Items Ordered': itemsSummary,
+      'Subtotal': Number(s.subtotal || s.totalAmount || 0).toFixed(2),
+      'Discount': Number(s.discount || 0).toFixed(2),
+      'Tax (GST)': Number(s.taxAmount || 0).toFixed(2),
+      'Total Amount': Number(s.totalAmount || 0).toFixed(2),
+      'Payment Method': s.paymentMethod || 'Cash',
+      'Status': s.status || 'Completed'
+    };
+  });
+};
+
 export const prepareTransactionData = (transactions = []) => {
   return transactions.map(tx => ({
     'Date': tx.date ? new Date(tx.date).toLocaleDateString('en-GB') : '',
