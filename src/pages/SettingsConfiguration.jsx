@@ -36,7 +36,7 @@ export const SettingsConfiguration = () => {
 
   // Security Credentials State
   const [oldPassword, setOldPassword] = useState('');
-  const [editUsername, setEditUsername] = useState(currentUser?.username || 'admin');
+  const [editUsername, setEditUsername] = useState(currentUser?.username || 'Boxy');
   const [editPassword, setEditPassword] = useState('');
   const [credMessage, setCredMessage] = useState(null);
 

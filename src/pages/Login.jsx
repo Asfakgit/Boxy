@@ -14,8 +14,8 @@ import {
 
 export const Login = () => {
   const { login } = useAuth();
-  const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('123');
+  const [username, setUsername] = useState('Boxy');
+  const [password, setPassword] = useState('Boxy@123');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -149,10 +149,10 @@ export const Login = () => {
             <div className="flex items-center justify-center gap-2">
               <button
                 type="button"
-                onClick={() => fillQuick('admin', '123')}
+                onClick={() => fillQuick('Boxy', 'Boxy@123')}
                 className="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 text-slate-700 dark:text-slate-300 hover:text-indigo-600 transition-all border border-slate-200/60 dark:border-slate-700/60"
               >
-                Admin (123)
+                Boxy (Boxy@123)
               </button>
               <button
                 type="button"

@@ -2,15 +2,15 @@ import { createContext, useContext, useState, useEffect } from 'react';
 
 const AuthContext = createContext();
 
-const USERS_STORAGE_KEY = 'boxy_users_v1';
-const SESSION_STORAGE_KEY = 'boxy_session_v1';
+const USERS_STORAGE_KEY = 'boxy_users_v2';
+const SESSION_STORAGE_KEY = 'boxy_session_v2';
 
 const DEFAULT_USERS = [
   {
     id: 'usr_admin',
-    username: 'admin',
-    password: '123',
-    name: 'Admin',
+    username: 'Boxy',
+    password: 'Boxy@123',
+    name: 'Boxy Admin',
     role: 'Administrator'
   },
   {
