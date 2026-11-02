@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useTheme } from '../../context/ThemeContext';
 import { useApp } from '../../context/AppContext';
+import { useAuth } from '../../context/AuthContext';
 import { ToastContainer } from '../ui/Toast';
 import logoImg from '../../assets/logo.jpeg';
 import {
@@ -21,7 +22,8 @@ import {
   X,
   ChevronRight,
   Flame,
-  RefreshCw
+  RefreshCw,
+  LogOut
 } from 'lucide-react';
 
 const PAGE_TITLES = {
@@ -81,6 +83,7 @@ const PAGE_ICONS = {
 export const Layout = ({ children }) => {
   const { theme, toggleTheme } = useTheme();
   const { refreshData, isSyncing } = useApp();
+  const { currentUser, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
@@ -148,12 +151,40 @@ export const Layout = ({ children }) => {
           ))}
         </div>
 
-        {/* Footer Quick Sync */}
-        <div className="p-4 border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/50">
+        {/* Footer User Profile & Quick Sync */}
+        <div className="p-3.5 border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/50 space-y-2">
+          {/* User Profile Card */}
+          <div className="flex items-center justify-between p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 shadow-2xs">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold text-xs uppercase shrink-0">
+                {currentUser?.username?.[0] || 'U'}
+              </div>
+              <div className="min-w-0">
+                <span className="font-extrabold text-xs text-slate-900 dark:text-white truncate block">
+                  {currentUser?.name || currentUser?.username || 'Admin'}
+                </span>
+                <span className="text-[10px] text-slate-400 font-medium block">
+                  {currentUser?.role || 'Staff'}
+                </span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (confirm('Are you sure you want to log out of Boxy ERP?')) logout();
+              }}
+              title="Log Out"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
+
           <button
             onClick={() => refreshData()}
             disabled={isSyncing}
-            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50 border border-slate-200/80 dark:border-slate-700/80 shadow-2xs"
+            className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50 border border-slate-200/80 dark:border-slate-700/80 shadow-2xs"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-indigo-600' : ''}`} />
             <span>{isSyncing ? 'Syncing...' : 'Sync Database'}</span>
@@ -300,12 +331,40 @@ export const Layout = ({ children }) => {
               ))}
             </div>
 
-            <div className="p-4 border-t border-slate-100 dark:border-slate-800">
+            <div className="p-4 border-t border-slate-100 dark:border-slate-800 space-y-2">
+              <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold text-xs uppercase shrink-0">
+                    {currentUser?.username?.[0] || 'U'}
+                  </div>
+                  <div className="min-w-0">
+                    <span className="font-extrabold text-xs text-slate-900 dark:text-white truncate block">
+                      {currentUser?.name || currentUser?.username || 'Admin'}
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-medium block">
+                      {currentUser?.role || 'Staff'}
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    if (confirm('Are you sure you want to log out of Boxy ERP?')) logout();
+                  }}
+                  className="px-2.5 py-1 rounded-lg text-xs font-bold text-rose-600 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 transition-colors flex items-center gap-1"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>Logout</span>
+                </button>
+              </div>
+
               <button
                 onClick={() => { setMobileMenuOpen(false); navigate('/settings'); }}
-                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold text-xs"
+                className="w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold text-xs"
               >
-                <span>Google Sheets Connection Settings</span>
+                <span>Settings</span>
               </button>
             </div>
           </div>

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
@@ -11,12 +12,16 @@ import {
   Sun,
   CheckCircle2,
   Cloud,
-  HardDrive
+  HardDrive,
+  KeyRound,
+  ShieldCheck,
+  AlertCircle
 } from 'lucide-react';
 
 export const SettingsConfiguration = () => {
   const { data, saveSettings, forceSyncFromSheets, isLoading, isSyncing } = useApp();
   const { theme, toggleTheme } = useTheme();
+  const { currentUser, changeCredentials } = useAuth();
 
   // Settings State
   const [currencySymbol, setCurrencySymbol] = useState(data?.settings?.currencySymbol || '₹');
@@ -28,6 +33,30 @@ export const SettingsConfiguration = () => {
 
   const [lastSyncTime, setLastSyncTime] = useState(new Date().toLocaleTimeString());
   const [syncSuccess, setSyncSuccess] = useState(false);
+
+  // Security Credentials State
+  const [oldPassword, setOldPassword] = useState('');
+  const [editUsername, setEditUsername] = useState(currentUser?.username || 'admin');
+  const [editPassword, setEditPassword] = useState('');
+  const [credMessage, setCredMessage] = useState(null);
+
+  const handleUpdateCredentials = (e) => {
+    e.preventDefault();
+    setCredMessage(null);
+    if (!oldPassword) {
+      setCredMessage({ type: 'error', text: 'Please enter your current password to confirm changes.' });
+      return;
+    }
+    const res = changeCredentials(oldPassword, editUsername, editPassword || oldPassword);
+    if (res.success) {
+      setCredMessage({ type: 'success', text: 'Login credentials updated successfully!' });
+      setOldPassword('');
+      setEditPassword('');
+      setTimeout(() => setCredMessage(null), 4000);
+    } else {
+      setCredMessage({ type: 'error', text: res.error || 'Failed to update credentials.' });
+    }
+  };
 
   const handleSaveGeneral = async (e) => {
     e.preventDefault();
@@ -209,6 +238,97 @@ export const SettingsConfiguration = () => {
           <div className="flex justify-end pt-2">
             <Button type="submit" variant="primary" icon={Save} isLoading={isLoading}>
               Update Kitchen Profile
+            </Button>
+          </div>
+        </form>
+      </Card>
+
+      {/* Security & Login Credentials */}
+      <Card
+        title="Security & Login Credentials"
+        subtitle="Manage your ERP login username and password"
+      >
+        <form onSubmit={handleUpdateCredentials} className="space-y-4 pt-2">
+          {/* Active User Pill */}
+          <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-black text-sm uppercase">
+                {currentUser?.username?.[0] || 'A'}
+              </div>
+              <div>
+                <span className="font-extrabold text-sm text-slate-900 dark:text-white block">
+                  {currentUser?.name || currentUser?.username}
+                </span>
+                <span className="text-xs text-slate-500 font-medium">
+                  Active User Role: <strong className="text-indigo-600 dark:text-indigo-400">{currentUser?.role || 'Administrator'}</strong>
+                </span>
+              </div>
+            </div>
+
+            <Badge variant="info">
+              <ShieldCheck className="w-3.5 h-3.5 mr-1" /> Protected Session
+            </Badge>
+          </div>
+
+          {credMessage && (
+            <div
+              className={`p-3 rounded-xl text-xs font-bold flex items-center gap-2 ${
+                credMessage.type === 'success'
+                  ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                  : 'bg-rose-50 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
+              }`}
+            >
+              {credMessage.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+              <span>{credMessage.text}</span>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                New Username
+              </label>
+              <input
+                type="text"
+                required
+                value={editUsername}
+                onChange={(e) => setEditUsername(e.target.value)}
+                placeholder="e.g. admin"
+                className="w-full px-3.5 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                New Password (leave blank to keep current)
+              </label>
+              <input
+                type="password"
+                value={editPassword}
+                onChange={(e) => setEditPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full px-3.5 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+              Current Password (required to save changes) *
+            </label>
+            <input
+              type="password"
+              required
+              value={oldPassword}
+              onChange={(e) => setOldPassword(e.target.value)}
+              placeholder="Enter current password to verify"
+              className="w-full sm:w-1/2 px-3.5 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl"
+            />
+          </div>
+
+          <div className="flex justify-end pt-2">
+            <Button type="submit" variant="primary" icon={KeyRound} className="bg-indigo-600 hover:bg-indigo-700 text-xs">
+              Save New Credentials
             </Button>
           </div>
         </form>
