@@ -81,7 +81,7 @@ export const POS = () => {
   }, [products, searchQuery, selectedCategory]);
 
   // Cart calculations
-  const subtotal = cart.reduce((sum, item) => sum + (Number(item.unitPrice || 0) * item.quantity), 0);
+  const subtotal = cart.reduce((sum, item) => sum + (Number(item.unitPrice || 0) * (Number(item.quantity) || 1)), 0);
   const discountVal = Number(discount) || 0;
   const taxableAmount = Math.max(0, subtotal - discountVal);
   const taxAmount = taxRate > 0 ? (taxableAmount * taxRate) / 100 : 0;
@@ -103,7 +103,10 @@ export const POS = () => {
         taxAmount,
         totalAmount,
         paymentMethod,
-        items: [...cart]
+        items: cart.map(item => ({
+          ...item,
+          quantity: Math.max(1, Number(item.quantity) || 1)
+        }))
       };
 
       await recordPOSSale(salePayload);
@@ -220,7 +223,7 @@ export const POS = () => {
                         <img src={prod.image} alt={prod.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center bg-slate-900/5 dark:bg-slate-800">
-                          <img src="/logo.jpg" alt="Boxy Logo" className="w-12 h-12 rounded-xl object-cover opacity-85 group-hover:scale-110 transition-transform duration-200 shadow-2xs" />
+                          <img src={data?.settings?.logo || '/logo.jpg'} alt="Boxy Logo" className="w-12 h-12 rounded-xl object-cover opacity-85 group-hover:scale-110 transition-transform duration-200 shadow-2xs" />
                         </div>
                       )}
                       {/* Live Stock Level Badge */}
@@ -340,6 +343,11 @@ export const POS = () => {
                       min="1"
                       value={item.quantity}
                       onChange={(e) => setCartQuantity(item.productCode, e.target.value)}
+                      onBlur={() => {
+                        if (!item.quantity || Number(item.quantity) < 1) {
+                          setCartQuantity(item.productCode, 1);
+                        }
+                      }}
                       className="w-11 sm:w-12 text-center font-black text-xs py-1 px-0.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-indigo-600 dark:text-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs shrink-0"
                       title="Type sale quantity"
                     />
@@ -352,7 +360,7 @@ export const POS = () => {
                       <Plus className="w-3 h-3" />
                     </button>
                     <span className="w-14 sm:w-16 text-right font-black text-slate-900 dark:text-white shrink-0 truncate">
-                      {fmt(item.unitPrice * item.quantity)}
+                      {fmt(item.unitPrice * (Number(item.quantity) || 1))}
                     </span>
                     <button
                       type="button"
@@ -607,7 +615,7 @@ export const POS = () => {
             {/* 80mm Thermal Receipt Preview Card */}
             <div id="printable-receipt" className="p-5 bg-white text-slate-900 border border-slate-200 rounded-2xl font-mono text-xs shadow-inner space-y-3">
               <div className="text-center space-y-0.5 border-b border-dashed border-slate-300 pb-3 flex flex-col items-center">
-                <img src="/logo.jpg" alt="Logo" className="w-12 h-12 rounded-xl object-cover mb-2 ring-1 ring-amber-400/40 shadow-xs" />
+                <img src={data?.settings?.logo || '/logo.jpg'} alt="Logo" className="w-12 h-12 rounded-xl object-cover mb-2 ring-1 ring-amber-400/40 shadow-xs" />
                 <h3 className="font-black text-sm tracking-wider uppercase">{data?.settings?.companyName || 'BOXY CLOUD KITCHEN'}</h3>
                 <p className="text-[10px] text-slate-500">{data?.settings?.tagline || 'Est. 2022'}</p>
                 <p className="text-[10px] text-slate-500">Invoice: #{lastOrder.invoiceNumber}</p>

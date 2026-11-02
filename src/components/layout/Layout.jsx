@@ -84,9 +84,10 @@ const PAGE_ICONS = {
 
 export const Layout = ({ children }) => {
   const { theme, toggleTheme } = useTheme();
-  const { refreshData, isSyncing } = useApp();
+  const { data, refreshData, isSyncing } = useApp();
   const { currentUser, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const logoSrc = data?.settings?.logo || logoImg;
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
       return localStorage.getItem('boxy_sidebar_collapsed') === 'true';
@@ -123,7 +124,7 @@ export const Layout = ({ children }) => {
         }`}>
           <div className="flex items-center gap-3 min-w-0">
             <img
-              src={logoImg}
+              src={logoSrc}
               alt="Boxy Logo"
               title="Boxy Cloud Kitchen POS & ERP"
               className="w-10 h-10 rounded-2xl object-cover shadow-md shadow-amber-500/25 ring-2 ring-amber-400/40 shrink-0 cursor-pointer"
@@ -374,7 +375,7 @@ export const Layout = ({ children }) => {
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-3">
                 <img
-                  src={logoImg}
+                  src={logoSrc}
                   alt="Boxy Logo"
                   className="w-9 h-9 rounded-xl object-cover shadow-md shadow-amber-500/25 ring-2 ring-amber-400/40"
                 />

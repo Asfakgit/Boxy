@@ -190,7 +190,7 @@ export const OrdersHistory = () => {
           <div className="space-y-4 pt-2">
             <div id="printable-receipt" className="p-5 bg-white text-slate-900 border border-slate-200 rounded-2xl font-mono text-xs shadow-inner space-y-3">
               <div className="text-center space-y-0.5 border-b border-dashed border-slate-300 pb-3 flex flex-col items-center">
-                <img src="/logo.jpg" alt="Logo" className="w-12 h-12 rounded-xl object-cover mb-2 ring-1 ring-amber-400/40 shadow-xs" />
+                <img src={data?.settings?.logo || '/logo.jpg'} alt="Logo" className="w-12 h-12 rounded-xl object-cover mb-2 ring-1 ring-amber-400/40 shadow-xs" />
                 <h3 className="font-black text-sm tracking-wider uppercase">{data?.settings?.companyName || 'BOXY CLOUD KITCHEN'}</h3>
                 <p className="text-[10px] text-slate-500">Invoice: #{selectedOrder.invoiceNumber}</p>
                 <p className="text-[10px] text-slate-500">Date: {new Date(selectedOrder.date).toLocaleString('en-GB')}</p>

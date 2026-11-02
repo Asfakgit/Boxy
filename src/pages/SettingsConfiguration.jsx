@@ -15,7 +15,9 @@ import {
   HardDrive,
   KeyRound,
   ShieldCheck,
-  AlertCircle
+  AlertCircle,
+  Upload,
+  RotateCcw
 } from 'lucide-react';
 
 export const SettingsConfiguration = () => {
@@ -24,6 +26,7 @@ export const SettingsConfiguration = () => {
   const { currentUser, changeCredentials } = useAuth();
 
   // Settings State
+  const [logo, setLogo] = useState(data?.settings?.logo || '/logo.jpg');
   const [currencySymbol, setCurrencySymbol] = useState(data?.settings?.currencySymbol || '₹');
   const [taxRate, setTaxRate] = useState(String(data?.settings?.taxRate ?? '0'));
   const [companyName, setCompanyName] = useState(data?.settings?.companyName || 'Boxy Cloud Kitchen');
@@ -39,6 +42,47 @@ export const SettingsConfiguration = () => {
   const [editUsername, setEditUsername] = useState(currentUser?.username || 'Boxy');
   const [editPassword, setEditPassword] = useState('');
   const [credMessage, setCredMessage] = useState(null);
+
+  const handleLogoUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Please upload a valid image file (PNG, JPG, JPEG, WEBP).');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new window.Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_DIM = 400;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_DIM) {
+            height *= MAX_DIM / width;
+            width = MAX_DIM;
+          }
+        } else {
+          if (height > MAX_DIM) {
+            width *= MAX_DIM / height;
+            height = MAX_DIM;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
+        setLogo(dataUrl);
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleUpdateCredentials = (e) => {
     e.preventDefault();
@@ -62,6 +106,7 @@ export const SettingsConfiguration = () => {
     e.preventDefault();
     const updated = {
       ...(data?.settings || {}),
+      logo,
       companyName,
       currencySymbol,
       taxRate: Number(taxRate || 0),
@@ -161,18 +206,48 @@ export const SettingsConfiguration = () => {
         subtitle="Manage business information printed on customer receipts and POS invoices"
       >
         <form onSubmit={handleSaveGeneral} className="space-y-4 pt-2">
-          {/* Brand Logo Showcase */}
-          <div className="flex items-center gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80">
-            <img
-              src="/logo.jpg"
-              alt="Official Kitchen Logo"
-              className="w-16 h-16 rounded-2xl object-cover ring-2 ring-amber-400/50 shadow-md shadow-amber-500/20 shrink-0"
-            />
-            <div>
-              <h4 className="font-extrabold text-sm text-slate-900 dark:text-white">Official Brand Logo Active</h4>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Featured across the sidebar header, POS receipts, order history invoices, items list, and browser tab favicon.
-              </p>
+          {/* Brand Logo Showcase & Upload */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80">
+            <div className="flex items-center gap-4">
+              <img
+                src={logo || '/logo.jpg'}
+                alt="Brand Logo"
+                className="w-16 h-16 rounded-2xl object-cover ring-2 ring-amber-400/50 shadow-md shadow-amber-500/20 shrink-0 bg-slate-900"
+              />
+              <div>
+                <h4 className="font-extrabold text-sm text-slate-900 dark:text-white">Official Brand Logo</h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Appears on Sidebar, POS Receipts, Order Invoices, Login screen, and Dashboard.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <label
+                htmlFor="settings-logo-input"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer shadow-xs transition-colors"
+              >
+                <Upload className="w-3.5 h-3.5" />
+                <span>Change Logo</span>
+              </label>
+              <input
+                id="settings-logo-input"
+                type="file"
+                accept="image/*"
+                onChange={handleLogoUpload}
+                className="hidden"
+              />
+              {logo !== '/logo.jpg' && (
+                <button
+                  type="button"
+                  onClick={() => setLogo('/logo.jpg')}
+                  className="px-3 py-2 text-xs font-bold rounded-xl bg-slate-200/80 dark:bg-slate-700 hover:bg-slate-300 text-slate-700 dark:text-slate-200 transition-colors"
+                  title="Reset to default logo"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 inline mr-1" />
+                  Reset
+                </button>
+              )}
             </div>
           </div>
 

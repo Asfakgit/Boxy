@@ -148,14 +148,21 @@ export const AppProvider = ({ children }) => {
   };
 
   const setCartQuantity = (productCode, exactQty) => {
-    const val = parseInt(exactQty, 10);
-    if (isNaN(val) || val <= 0) {
-      removeFromCart(productCode);
+    // If the user hit backspace and value is empty string, keep item with empty string so they can type
+    if (exactQty === '' || exactQty === null || exactQty === undefined) {
+      setCart(prev => prev.map(item => {
+        if (item.productCode === productCode) {
+          return { ...item, quantity: '' };
+        }
+        return item;
+      }));
       return;
     }
+    const val = parseInt(exactQty, 10);
+    if (isNaN(val)) return;
     setCart(prev => prev.map(item => {
       if (item.productCode === productCode) {
-        return { ...item, quantity: val };
+        return { ...item, quantity: Math.max(1, val) };
       }
       return item;
     }));
@@ -164,7 +171,8 @@ export const AppProvider = ({ children }) => {
   const updateCartQuantity = (productCode, delta) => {
     setCart(prev => prev.map(item => {
       if (item.productCode === productCode) {
-        const newQty = item.quantity + delta;
+        const currentQty = Number(item.quantity) || 1;
+        const newQty = currentQty + delta;
         return newQty > 0 ? { ...item, quantity: newQty } : null;
       }
       return item;

@@ -110,7 +110,7 @@ export const Dashboard = () => {
       <div className="p-5 rounded-3xl bg-gradient-to-r from-indigo-900 via-indigo-800 to-slate-900 text-white flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-lg">
         <div className="flex items-center gap-3.5">
           <img
-            src="/logo.jpg"
+            src={data?.settings?.logo || '/logo.jpg'}
             alt="Boxy Kitchen Logo"
             className="w-13 h-13 rounded-2xl object-cover ring-2 ring-amber-400/50 shadow-md shadow-amber-500/20"
           />

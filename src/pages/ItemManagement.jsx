@@ -19,12 +19,14 @@ import {
   XCircle,
   Sliders,
   TrendingUp,
-  Tag
+  Tag,
+  Search,
+  ArrowRight
 } from 'lucide-react';
 
 export const ItemManagement = () => {
   const { data, saveItem, deleteItem, adjustStock, isLoading } = useApp();
-  const [activeTab, setActiveTab] = useState('stock'); // 'stock', 'products', 'materials'
+  const [activeTab, setActiveTab] = useState('stock'); // 'stock', 'products', 'materials', 'categories'
   const [modalOpen, setModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [viewingItem, setViewingItem] = useState(null);
@@ -32,6 +34,15 @@ export const ItemManagement = () => {
   const [adjustTarget, setAdjustTarget] = useState(null);
   const [adjustDelta, setAdjustDelta] = useState('');
   const [adjustNotes, setAdjustNotes] = useState('');
+
+  // Category Look & Edit Management State
+  const [editingCategory, setEditingCategory] = useState(null);
+  const [isRenamingCategory, setIsRenamingCategory] = useState(false);
+  const [categorySearch, setCategorySearch] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [newCategoryModalOpen, setNewCategoryModalOpen] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategoryType, setNewCategoryType] = useState('products');
 
   const currency = data?.settings?.currencySymbol || '₹';
   const fmt = (val) => `${currency} ${Number(val || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -94,6 +105,102 @@ export const ItemManagement = () => {
 
     return list;
   }, [data]);
+
+  // Grouped Categories Analysis (Dishes & Ingredients)
+  const categoriesSummary = useMemo(() => {
+    const map = new Map();
+
+    (data?.products || []).forEach(p => {
+      const cat = (p.category || 'Dishes').trim();
+      if (!map.has(cat)) {
+        map.set(cat, {
+          name: cat,
+          type: 'products',
+          typeLabel: 'Menu Dishes',
+          count: 0,
+          items: [],
+          totalStock: 0,
+          minPrice: Infinity,
+          maxPrice: 0
+        });
+      }
+      const entry = map.get(cat);
+      entry.count += 1;
+      entry.items.push(p);
+      entry.totalStock += Number(p.currentStock || 0);
+      const price = Number(p.sellingPrice || 0);
+      if (price < entry.minPrice) entry.minPrice = price;
+      if (price > entry.maxPrice) entry.maxPrice = price;
+    });
+
+    (data?.rawMaterials || []).forEach(rm => {
+      const cat = (rm.category || 'Ingredients').trim();
+      if (!map.has(cat)) {
+        map.set(cat, {
+          name: cat,
+          type: 'materials',
+          typeLabel: 'Raw Materials',
+          count: 0,
+          items: [],
+          totalStock: 0,
+          minPrice: 0,
+          maxPrice: 0
+        });
+      }
+      const entry = map.get(cat);
+      entry.count += 1;
+      entry.items.push(rm);
+      entry.totalStock += Number(rm.currentStock || 0);
+    });
+
+    return Array.from(map.values()).sort((a, b) => b.count - a.count);
+  }, [data]);
+
+  const filteredCategories = useMemo(() => {
+    if (!categorySearch.trim()) return categoriesSummary;
+    const term = categorySearch.toLowerCase();
+    return categoriesSummary.filter(c => c.name.toLowerCase().includes(term));
+  }, [categoriesSummary, categorySearch]);
+
+  const handleSaveCategoryEdit = async (e) => {
+    e.preventDefault();
+    if (!editingCategory || !editingCategory.newName.trim()) return;
+    const oldName = editingCategory.originalName;
+    const newName = editingCategory.newName.trim();
+    if (oldName === newName) {
+      setEditingCategory(null);
+      return;
+    }
+
+    setIsRenamingCategory(true);
+    try {
+      const matchingProducts = (data?.products || []).filter(p => (p.category || 'Dishes').trim() === oldName);
+      for (const prod of matchingProducts) {
+        await saveItem('Products', { ...prod, category: newName }, 'Menu Item');
+      }
+
+      const matchingMaterials = (data?.rawMaterials || []).filter(rm => (rm.category || 'Ingredients').trim() === oldName);
+      for (const rm of matchingMaterials) {
+        await saveItem('Raw Materials', { ...rm, category: newName }, 'Raw Material');
+      }
+
+      setEditingCategory(null);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsRenamingCategory(false);
+    }
+  };
+
+  const handleCreateNewCategory = (e) => {
+    e.preventDefault();
+    if (!newCategoryName.trim()) return;
+    const name = newCategoryName.trim();
+    setNewCategoryModalOpen(false);
+    handleOpenModal(null, newCategoryType);
+    setEditingItem(prev => ({ ...prev, category: name }));
+    setNewCategoryName('');
+  };
 
   // Open "Look / View Details" Modal
   const handleOpenLookModal = (item) => {
@@ -325,7 +432,32 @@ export const ItemManagement = () => {
           <Package className="w-4 h-4 text-amber-600 dark:text-amber-400" />
           <span>Raw Materials / Ingredients ({data?.rawMaterials?.length || 0})</span>
         </button>
+
+        <button
+          onClick={() => { setActiveTab('categories'); setCategoryFilter(''); }}
+          className={`flex items-center gap-2 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl font-bold text-xs whitespace-nowrap shrink-0 transition-all ${
+            activeTab === 'categories'
+              ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+          }`}
+        >
+          <Tag className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+          <span>Categories ({categoriesSummary.length})</span>
+        </button>
       </div>
+
+      {/* Category Active Filter Banner */}
+      {categoryFilter && activeTab !== 'categories' && (
+        <div className="flex items-center gap-2 p-2 px-3 bg-indigo-50 dark:bg-indigo-950/40 rounded-xl border border-indigo-200 dark:border-indigo-800 text-xs text-indigo-900 dark:text-indigo-300 w-fit">
+          <span>Filtering by category: <strong>{categoryFilter}</strong></span>
+          <button
+            onClick={() => setCategoryFilter('')}
+            className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline ml-1"
+          >
+            Clear Filter
+          </button>
+        </div>
+      )}
 
       {/* Main Table Views */}
       <div className="space-y-4">
@@ -475,7 +607,7 @@ export const ItemManagement = () => {
                 )
               }
             ]}
-            data={unifiedStock}
+            data={categoryFilter ? unifiedStock.filter(item => (item.category || '').trim() === categoryFilter) : unifiedStock}
             onRowClick={(row) => handleOpenLookModal(row)}
             searchPlaceholder="Search all inventory & items by name, code, category..."
             emptyMessage="No stock items found. Add menu dishes or kitchen raw materials above!"
@@ -491,7 +623,7 @@ export const ItemManagement = () => {
                 render: (r) => r.image ? (
                   <img src={r.image} className="w-10 h-10 rounded-xl object-cover border border-slate-200 shrink-0" alt="" />
                 ) : (
-                  <img src="/logo.jpg" className="w-10 h-10 rounded-xl object-cover ring-1 ring-amber-400/40 shrink-0 shadow-2xs" alt="" />
+                  <img src={data?.settings?.logo || '/logo.jpg'} className="w-10 h-10 rounded-xl object-cover ring-1 ring-amber-400/40 shrink-0 shadow-2xs" alt="" />
                 )
               },
               {
@@ -579,7 +711,7 @@ export const ItemManagement = () => {
                 )
               }
             ]}
-            data={data?.products || []}
+            data={categoryFilter ? (data?.products || []).filter(p => (p.category || 'Dishes').trim() === categoryFilter) : (data?.products || [])}
             onRowClick={(row) => handleOpenLookModal(row)}
             searchPlaceholder="Search menu items..."
             emptyMessage="No menu items registered yet. Add your first dish above!"
@@ -663,11 +795,154 @@ export const ItemManagement = () => {
                 )
               }
             ]}
-            data={data?.rawMaterials || []}
+            data={categoryFilter ? (data?.rawMaterials || []).filter(rm => (rm.category || 'Ingredients').trim() === categoryFilter) : (data?.rawMaterials || [])}
             onRowClick={(row) => handleOpenLookModal(row)}
             searchPlaceholder="Search raw materials..."
             emptyMessage="No raw materials registered yet. Add chicken, oil, flour, etc.!"
           />
+        )}
+
+        {/* CATEGORY LOOK & MANAGEMENT VIEW */}
+        {activeTab === 'categories' && (
+          <div className="space-y-4">
+            {/* Toolbar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="relative w-full sm:w-80">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search categories..."
+                  value={categorySearch}
+                  onChange={(e) => setCategorySearch(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 text-xs bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs font-medium"
+                />
+              </div>
+
+              <Button
+                variant="primary"
+                size="sm"
+                icon={Plus}
+                onClick={() => setNewCategoryModalOpen(true)}
+                className="text-xs"
+              >
+                + New Category
+              </Button>
+            </div>
+
+            {/* Category Cards Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredCategories.map((cat, idx) => (
+                <div
+                  key={cat.name || idx}
+                  className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 shadow-xs hover:border-indigo-400 hover:shadow-md transition-all flex flex-col justify-between"
+                >
+                  <div>
+                    <div className="flex items-start justify-between gap-2 mb-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 ${
+                          cat.type === 'products'
+                            ? 'bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400'
+                            : 'bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400'
+                        }`}>
+                          {cat.type === 'products' ? <UtensilsCrossed className="w-5 h-5" /> : <Package className="w-5 h-5" />}
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="font-extrabold text-base text-slate-900 dark:text-white truncate">
+                            {cat.name}
+                          </h4>
+                          <span className="text-[10px] font-bold uppercase text-slate-400">
+                            {cat.typeLabel}
+                          </span>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setEditingCategory({ originalName: cat.name, newName: cat.name, count: cat.count })}
+                        title={`Edit category name: ${cat.name}`}
+                        className="p-2 rounded-xl bg-slate-100 hover:bg-indigo-50 dark:bg-slate-800 dark:hover:bg-indigo-950/60 text-slate-600 dark:text-slate-300 hover:text-indigo-600 transition-colors shrink-0"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    {/* Stats */}
+                    <div className="grid grid-cols-2 gap-2 my-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 text-xs">
+                      <div>
+                        <span className="text-[10px] text-slate-400 block font-semibold">Total Items</span>
+                        <span className="font-black text-sm text-slate-800 dark:text-slate-200">
+                          {cat.count} {cat.count === 1 ? 'item' : 'items'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 block font-semibold">
+                          {cat.type === 'products' ? 'Price Range' : 'Current Stock'}
+                        </span>
+                        <span className="font-bold text-xs text-indigo-600 dark:text-indigo-400 truncate block">
+                          {cat.type === 'products'
+                            ? (cat.minPrice !== Infinity ? `${fmt(cat.minPrice)} – ${fmt(cat.maxPrice)}` : '—')
+                            : `${cat.totalStock} in stock`}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Preview Images stack */}
+                    <div className="flex items-center gap-1.5 overflow-hidden py-1">
+                      {cat.items.slice(0, 4).map((item, iIdx) => (
+                        <div
+                          key={item.id || item.code || iIdx}
+                          title={item.name}
+                          className="w-8 h-8 rounded-lg overflow-hidden border border-slate-200/80 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 shrink-0"
+                        >
+                          {item.image ? (
+                            <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-[10px] font-bold text-slate-400">
+                              {item.name?.slice(0, 2).toUpperCase()}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                      {cat.items.length > 4 && (
+                        <span className="text-[10px] font-bold text-slate-400 px-1">
+                          +{cat.items.length - 4} more
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-3 mt-3 border-t border-slate-100 dark:border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => setEditingCategory({ originalName: cat.name, newName: cat.name, count: cat.count })}
+                      className="flex-1 py-1.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-300 transition-colors flex items-center justify-center gap-1.5"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                      <span>Edit Name</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveTab(cat.type);
+                        setCategoryFilter(cat.name);
+                      }}
+                      className="flex-1 py-1.5 px-3 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-xs font-bold text-indigo-600 dark:text-indigo-400 transition-colors flex items-center justify-center gap-1"
+                    >
+                      <span>View Items</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+
+              {filteredCategories.length === 0 && (
+                <div className="col-span-full py-16 text-center text-slate-400 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
+                  <Tag className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                  <p className="text-sm font-semibold">No categories match your search.</p>
+                </div>
+              )}
+            </div>
+          </div>
         )}
       </div>
 
@@ -684,7 +959,7 @@ export const ItemManagement = () => {
               {viewingItem.image ? (
                 <img src={viewingItem.image} alt={viewingItem.name} className="w-24 h-24 rounded-2xl object-cover border border-slate-200 dark:border-slate-700 shadow-sm shrink-0" />
               ) : (
-                <img src="/logo.jpg" alt="Boxy Logo" className="w-24 h-24 rounded-2xl object-cover ring-2 ring-amber-400/50 shadow-md shrink-0" />
+                <img src={data?.settings?.logo || '/logo.jpg'} alt="Boxy Logo" className="w-24 h-24 rounded-2xl object-cover ring-2 ring-amber-400/50 shadow-md shrink-0" />
               )}
 
               <div className="flex-1 text-center sm:text-left min-w-0">
@@ -1025,6 +1300,111 @@ export const ItemManagement = () => {
             <div className="flex justify-end gap-2 pt-3">
               <Button type="button" variant="ghost" onClick={() => setModalOpen(false)}>Cancel</Button>
               <Button type="submit" variant="primary" isLoading={isLoading}>Save Item</Button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* EDIT CATEGORY MODAL */}
+      {editingCategory && (
+        <Modal
+          isOpen={Boolean(editingCategory)}
+          onClose={() => setEditingCategory(null)}
+          title={`Edit Category: ${editingCategory.originalName}`}
+          subtitle="Rename this category across all associated inventory records"
+        >
+          <form onSubmit={handleSaveCategoryEdit} className="space-y-4 pt-2">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                Category Name *
+              </label>
+              <input
+                type="text"
+                required
+                autoFocus
+                value={editingCategory.newName}
+                onChange={(e) => setEditingCategory({ ...editingCategory, newName: e.target.value })}
+                placeholder="e.g. Shawarma, Burgers, Hot Drinks..."
+                className="w-full px-3.5 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <p className="text-[11px] text-slate-500 mt-1.5">
+                Renaming will automatically update all <strong>{editingCategory.count}</strong> items currently assigned to "{editingCategory.originalName}".
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <Button type="button" variant="ghost" onClick={() => setEditingCategory(null)}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="primary" isLoading={isRenamingCategory} icon={CheckCircle2}>
+                Save Category Name
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* CREATE NEW CATEGORY MODAL */}
+      {newCategoryModalOpen && (
+        <Modal
+          isOpen={newCategoryModalOpen}
+          onClose={() => setNewCategoryModalOpen(false)}
+          title="Create New Category"
+          subtitle="Add a new category classification for menu items or raw materials"
+        >
+          <form onSubmit={handleCreateNewCategory} className="space-y-4 pt-2">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                Category Name *
+              </label>
+              <input
+                type="text"
+                required
+                autoFocus
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+                placeholder="e.g. Desserts, Fresh Juices, Rice Bowls..."
+                className="w-full px-3.5 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                Category Type
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setNewCategoryType('products')}
+                  className={`p-3 rounded-xl border text-xs font-bold transition-all text-center ${
+                    newCategoryType === 'products'
+                      ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400'
+                      : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                  }`}
+                >
+                  Menu Items / Dishes
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNewCategoryType('materials')}
+                  className={`p-3 rounded-xl border text-xs font-bold transition-all text-center ${
+                    newCategoryType === 'materials'
+                      ? 'border-amber-600 bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400'
+                      : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                  }`}
+                >
+                  Raw Materials / Ingredients
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <Button type="button" variant="ghost" onClick={() => setNewCategoryModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="primary">
+                Create & Add Item
+              </Button>
             </div>
           </form>
         </Modal>
