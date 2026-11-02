@@ -5,12 +5,15 @@ const AuthContext = createContext();
 const USERS_STORAGE_KEY = 'boxy_users_v2';
 const SESSION_STORAGE_KEY = 'boxy_session_v2';
 
+const ENV_USERNAME = import.meta.env.VITE_DEFAULT_USERNAME || 'Boxy';
+const ENV_PASSWORD = import.meta.env.VITE_DEFAULT_PASSWORD || 'Boxy@123';
+
 const DEFAULT_USERS = [
   {
     id: 'usr_admin',
-    username: 'Boxy',
-    password: 'Boxy@123',
-    name: 'Boxy Admin',
+    username: ENV_USERNAME,
+    password: ENV_PASSWORD,
+    name: `${ENV_USERNAME} Admin`,
     role: 'Administrator'
   },
   {
@@ -26,7 +29,18 @@ export const AuthProvider = ({ children }) => {
   const [users, setUsers] = useState(() => {
     try {
       const saved = localStorage.getItem(USERS_STORAGE_KEY);
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        // Ensure admin account always matches the current .env credentials
+        const adminIdx = parsed.findIndex(u => u.id === 'usr_admin');
+        if (adminIdx !== -1) {
+          parsed[adminIdx].username = ENV_USERNAME;
+          parsed[adminIdx].password = ENV_PASSWORD;
+          parsed[adminIdx].name = `${ENV_USERNAME} Admin`;
+          return parsed;
+        }
+        return parsed;
+      }
     } catch {
       // Fallback
     }
