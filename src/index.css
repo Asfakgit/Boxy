@@ -35,6 +35,18 @@
     margin: 0;
     padding: 0;
   }
+
+  /* Disable / Remove native number input spinner arrows across entire project */
+  input::-webkit-outer-spin-button,
+  input::-webkit-inner-spin-button {
+    -webkit-appearance: none !important;
+    margin: 0 !important;
+  }
+
+  input[type=number] {
+    -moz-appearance: textfield !important;
+    appearance: textfield !important;
+  }
 }
 
 /* Custom Scrollbar */
