@@ -128,3 +128,4 @@ export const getCompatibleUnits = (stockUnit) => {
 
   return Object.keys(UNIT_METADATA).filter(u => UNIT_METADATA[u].type === meta.type);
 };
+
