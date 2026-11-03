@@ -185,3 +185,4 @@ export const formatWhatsAppReceipt = (order, settings = {}) => {
 
   return `https://wa.me/?text=${text}`;
 };
+
