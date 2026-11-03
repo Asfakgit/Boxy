@@ -645,6 +645,41 @@ export const AppProvider = ({ children }) => {
     }
   };
 
+  const resetAllStockToZero = async () => {
+    setIsLoading(true);
+    try {
+      setData(prev => {
+        const nextProducts = (prev.products || []).map(p => ({ ...p, currentStock: 0 }));
+        const nextRawMaterials = (prev.rawMaterials || []).map(rm => ({ ...rm, currentStock: 0, totalAmount: 0 }));
+        const nextDb = { ...prev, products: nextProducts, rawMaterials: nextRawMaterials };
+        saveDatabase(nextDb);
+        return nextDb;
+      });
+
+      const db = getDatabase();
+      for (const prod of (db.products || [])) {
+        try {
+          await api.adjustStock({ itemId: prod.code || prod.id, newStock: 0, type: 'product', notes: 'Stock reset to 0' });
+        } catch (e) {
+          console.warn('Sync zero product stock:', e);
+        }
+      }
+      for (const rm of (db.rawMaterials || [])) {
+        try {
+          await api.adjustStock({ itemId: rm.id, newStock: 0, type: 'rawMaterial', notes: 'Stock reset to 0' });
+        } catch (e) {
+          console.warn('Sync zero rm stock:', e);
+        }
+      }
+
+      showToast('All inventory current stock has been set to 0!', 'success');
+    } catch (err) {
+      showToast('Error setting stock to 0: ' + err.message, 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const saveSettings = async (updatedSettings) => {
     setIsLoading(true);
     try {
@@ -721,6 +756,7 @@ export const AppProvider = ({ children }) => {
       recordCustomerSettlement,
       recordSupplierPayment,
       adjustStock,
+      resetAllStockToZero,
       saveItem,
       deleteItem,
       saveSettings,

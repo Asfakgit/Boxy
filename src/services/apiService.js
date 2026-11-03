@@ -25,6 +25,18 @@ export const getDatabase = () => {
       parsed.settings.taxRate = 0;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
     }
+    if (Array.isArray(parsed.products)) {
+      parsed.products = parsed.products.map(p => ({
+        ...p,
+        currentStock: p.currentStock !== undefined && p.currentStock !== '' ? Number(p.currentStock) : 0
+      }));
+    }
+    if (Array.isArray(parsed.rawMaterials)) {
+      parsed.rawMaterials = parsed.rawMaterials.map(rm => ({
+        ...rm,
+        currentStock: rm.currentStock !== undefined && rm.currentStock !== '' ? Number(rm.currentStock) : 0
+      }));
+    }
     return { ...INITIAL_DATA, ...parsed };
   } catch {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_DATA));

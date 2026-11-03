@@ -23,11 +23,12 @@ import {
   Search,
   ArrowRight,
   Calculator,
-  ChevronDown
+  ChevronDown,
+  RotateCcw
 } from 'lucide-react';
 
 export const ItemManagement = () => {
-  const { data, saveItem, deleteItem, adjustStock, showConfirmDialog, isLoading } = useApp();
+  const { data, saveItem, deleteItem, adjustStock, resetAllStockToZero, showConfirmDialog, isLoading } = useApp();
   const [activeTab, setActiveTab] = useState('stock'); // 'stock', 'products', 'materials', 'categories'
   const [modalOpen, setModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
@@ -312,7 +313,7 @@ export const ItemManagement = () => {
               category: defaultProdCat,
               sellingPrice: '',
               costPrice: '',
-              currentStock: '20',
+              currentStock: '0',
               minStock: '5',
               unit: 'portion',
               image: '',
@@ -324,8 +325,8 @@ export const ItemManagement = () => {
               category: defaultMatCat,
               unit: 'kg',
               costPrice: '',
-              currentStock: '',
-              totalAmount: '',
+              currentStock: '0',
+              totalAmount: '0',
               minStock: '5',
               _itemType: 'materials'
             }
@@ -515,7 +516,7 @@ export const ItemManagement = () => {
             Real-time kitchen inventory counts, menu products, and raw ingredient restocking
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             onClick={() => handleOpenModal(null, 'products')}
             variant="primary"
@@ -531,6 +532,23 @@ export const ItemManagement = () => {
             className="text-xs border-amber-500/50 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40"
           >
             Add Raw Material
+          </Button>
+          <Button
+            onClick={() => {
+              showConfirmDialog({
+                title: 'Set All Current Stock to 0',
+                itemName: 'Entire Kitchen Inventory',
+                message: 'Are you sure you want to set current stock to 0 for all menu items and raw materials? This will zero out current inventory levels and sync to Google Sheets.',
+                type: 'danger',
+                confirmText: 'Yes, Set All to 0',
+                onConfirm: resetAllStockToZero
+              });
+            }}
+            variant="outline"
+            icon={RotateCcw}
+            className="text-xs border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:text-rose-600 hover:border-rose-300"
+          >
+            Set Stock to 0
           </Button>
         </div>
       </div>
@@ -1312,7 +1330,7 @@ export const ItemManagement = () => {
                 required
                 value={adjustDelta}
                 onChange={(e) => setAdjustDelta(e.target.value)}
-                placeholder="e.g. +20 (new batch) or -5 (damage/spoilage)"
+                placeholder="e.g. +10 (new batch) or -5 (damage/spoilage)"
                 className="w-full px-3.5 py-2.5 text-base bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl font-black text-indigo-600"
               />
               <div className="flex gap-2 mt-2">
@@ -1509,7 +1527,7 @@ export const ItemManagement = () => {
                       step="any"
                       value={editingItem.currentStock || ''}
                       onChange={(e) => setEditingItem({ ...editingItem, currentStock: e.target.value })}
-                      placeholder="20"
+                      placeholder="0"
                       className="w-full px-3.5 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-black text-indigo-600"
                     />
                   </div>
@@ -1698,7 +1716,7 @@ export const ItemManagement = () => {
                         required
                         value={editingItem.currentStock ?? ''}
                         onChange={(e) => handleMaterialQtyChange(e.target.value)}
-                        placeholder="e.g. 20"
+                        placeholder="0"
                         className="w-full px-3.5 py-2.5 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-black text-indigo-600 dark:text-indigo-400 focus:ring-2 focus:ring-amber-400"
                       />
                       <span className="text-[10px] text-slate-400 mt-0.5 block">Quantity bought</span>
@@ -1715,7 +1733,7 @@ export const ItemManagement = () => {
                         required
                         value={editingItem.costPrice ?? ''}
                         onChange={(e) => handleMaterialCostChange(e.target.value)}
-                        placeholder="e.g. 20.00"
+                        placeholder="0.00"
                         className="w-full px-3.5 py-2.5 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-black text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-amber-400"
                       />
                       <span className="text-[10px] text-slate-400 mt-0.5 block">Price per {editingItem.unit || 'kg'}</span>
