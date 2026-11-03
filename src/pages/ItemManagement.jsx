@@ -99,8 +99,7 @@ export const ItemManagement = () => {
       const stock = p.currentStock !== undefined && p.currentStock !== '' ? Number(p.currentStock) : 0;
       const min = Number(p.minStock || 5);
       let status = 'in_stock';
-      if (stock <= 0) status = 'out_of_stock';
-      else if (stock <= min) status = 'low_stock';
+      if (stock > 0 && stock <= min) status = 'low_stock';
 
       list.push({
         id: p.code || p.id,
@@ -125,8 +124,7 @@ export const ItemManagement = () => {
       const stock = rm.currentStock !== undefined && rm.currentStock !== '' ? Number(rm.currentStock) : 0;
       const min = Number(rm.minStock || 5);
       let status = 'in_stock';
-      if (stock <= 0) status = 'out_of_stock';
-      else if (stock <= min) status = 'low_stock';
+      if (stock > 0 && stock <= min) status = 'low_stock';
 
       list.push({
         id: rm.id || rm.code,
@@ -815,13 +813,12 @@ export const ItemManagement = () => {
                 header: 'Current Stock',
                 accessor: 'currentStock',
                 render: (r) => {
-                  const isOut = r.stockStatus === 'out_of_stock';
                   const isLow = r.stockStatus === 'low_stock';
 
                   return (
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className={`text-base font-black ${isOut ? 'text-rose-600' : isLow ? 'text-amber-600 dark:text-amber-400' : 'text-slate-900 dark:text-white'}`}>
+                        <span className={`text-base font-black ${isLow ? 'text-amber-600 dark:text-amber-400' : 'text-slate-900 dark:text-white'}`}>
                           {r.currentStock} <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">{r.unit}</span>
                         </span>
                       </div>
@@ -834,13 +831,6 @@ export const ItemManagement = () => {
                 header: 'Stock Status',
                 accessor: 'stockStatus',
                 render: (r) => {
-                  if (r.stockStatus === 'out_of_stock') {
-                    return (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400 border border-rose-200 dark:border-rose-800">
-                        <XCircle className="w-3.5 h-3.5" /> Out of Stock
-                      </span>
-                    );
-                  }
                   if (r.stockStatus === 'low_stock') {
                     return (
                       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400 border border-amber-200 dark:border-amber-800">

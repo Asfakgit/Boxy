@@ -251,13 +251,10 @@ export const POS = () => {
                         }
 
                         if (prod.currentStock !== undefined && prod.currentStock !== '') {
+                          if (Number(prod.currentStock) <= 0) return null;
                           return (
                             <div className="absolute top-1.5 left-1.5">
-                              {Number(prod.currentStock) <= 0 ? (
-                                <span className="px-2 py-0.5 rounded-full bg-rose-600 text-white text-[9px] font-black shadow-xs">
-                                  Out of Stock
-                                </span>
-                              ) : Number(prod.currentStock) <= Number(prod.minStock || 5) ? (
+                              {Number(prod.currentStock) <= Number(prod.minStock || 5) ? (
                                 <span className="px-2 py-0.5 rounded-full bg-amber-500 text-white text-[9px] font-black shadow-xs">
                                   {prod.currentStock} left
                                 </span>

@@ -30,7 +30,7 @@ export const Badge = ({ children, variant = 'default', className = '' }) => {
         dot: 'bg-emerald-500'
       };
     }
-    if (text.includes('low') || text.includes('due') || text.includes('danger') || text.includes('out of stock') || text.includes('error')) {
+    if (text.includes('low') || text.includes('due') || text.includes('danger') || text.includes('error')) {
       return {
         wrap: 'bg-rose-50 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300 border-rose-200/80 dark:border-rose-800/80',
         dot: 'bg-rose-500'

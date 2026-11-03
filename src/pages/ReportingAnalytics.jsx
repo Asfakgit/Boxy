@@ -401,10 +401,7 @@ export const ReportingAnalytics = () => {
       const totalValuation = current * cost;
       let status = 'Healthy';
       let statusVariant = 'success';
-      if (current <= 0) {
-        status = 'Depleted (Out of Stock)';
-        statusVariant = 'danger';
-      } else if (current <= min) {
+      if (current > 0 && current <= min) {
         status = 'Low Stock Alert';
         statusVariant = 'warning';
       }
