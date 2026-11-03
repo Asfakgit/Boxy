@@ -25,14 +25,14 @@ const SHEET_NAMES = {
   PURCHASES: 'Purchases',
   EXPENSES: 'Expenses',
   CUSTOMERS: 'Customers',
-  SUPPLIERS: 'Suppliers'
+  SUPPLIERS: 'Suppliers',
+  RECIPES: 'Recipes'
 };
 
 const UNWANTED_SHEETS = [
   'Employees',
   'Units',
   'Categories',
-  'Recipes',
   'Settings',
   'Sale Items',
   'Purchase Items',
@@ -49,7 +49,8 @@ const SCHEMAS = {
   [SHEET_NAMES.PURCHASES]: ['purchaseNumber', 'date', 'supplierName', 'itemsSummary', 'totalAmount', 'amountPaid', 'paymentStatus', 'paymentMethod', 'notes'],
   [SHEET_NAMES.EXPENSES]: ['id', 'date', 'category', 'amount', 'paymentMethod', 'description'],
   [SHEET_NAMES.CUSTOMERS]: ['id', 'name', 'phone', 'address', 'outstandingBalance', 'creditLimit'],
-  [SHEET_NAMES.SUPPLIERS]: ['id', 'name', 'phone', 'address', 'outstandingBalance']
+  [SHEET_NAMES.SUPPLIERS]: ['id', 'name', 'phone', 'address', 'outstandingBalance'],
+  [SHEET_NAMES.RECIPES]: ['id', 'productCode', 'productName', 'rawMaterialId', 'rawMaterialName', 'quantity', 'unit', 'costPerUnit', 'totalCost']
 };
 
 // Distinct tab colors for clean visual navigation in Google Sheets
@@ -61,7 +62,8 @@ const TAB_COLORS = {
   [SHEET_NAMES.PURCHASES]: '#0284c7',   // Sky
   [SHEET_NAMES.EXPENSES]: '#e11d48',    // Rose
   [SHEET_NAMES.CUSTOMERS]: '#0d9488',   // Teal
-  [SHEET_NAMES.SUPPLIERS]: '#ea580c'    // Orange
+  [SHEET_NAMES.SUPPLIERS]: '#ea580c',   // Orange
+  [SHEET_NAMES.RECIPES]: '#ec4899'      // Pink
 };
 
 /**
@@ -337,6 +339,25 @@ function logTransaction(tx) {
 /**
  * Record Sale with Clean Single-Row Items Summary & Auto Stock Deduction
  */
+function convertRecipeQty(qty, fromUnit, toUnit) {
+  const f = String(fromUnit || '').trim().toLowerCase();
+  const t = String(toUnit || '').trim().toLowerCase();
+  if (f === t) return Number(qty || 0);
+  if ((f === 'g' || f === 'gram' || f === 'grams') && (t === 'kg' || t === 'kilogram' || t === 'kilograms')) {
+    return Number(qty || 0) / 1000;
+  }
+  if ((f === 'kg' || f === 'kilogram' || f === 'kilograms') && (t === 'g' || t === 'gram' || t === 'grams')) {
+    return Number(qty || 0) * 1000;
+  }
+  if ((f === 'ml' || f === 'millilitre' || f === 'millilitres') && (t === 'ltr' || t === 'liter' || t === 'litres')) {
+    return Number(qty || 0) / 1000;
+  }
+  if ((f === 'ltr' || f === 'liter' || f === 'litres') && (t === 'ml' || t === 'millilitre' || t === 'millilitres')) {
+    return Number(qty || 0) * 1000;
+  }
+  return Number(qty || 0);
+}
+
 function recordSaleEntry(saleData) {
   const ss = getSpreadsheet();
   let salesSheet = ss.getSheetByName(SHEET_NAMES.SALES);
@@ -371,25 +392,58 @@ function recordSaleEntry(saleData) {
     'Completed'
   ]);
 
-  // 2. Automatically Deduct Sold Stock from Products
-  if (items.length > 0 && productsSheet) {
-    const productsData = getSheetData(SHEET_NAMES.PRODUCTS);
-    const prodHeaders = SCHEMAS[SHEET_NAMES.PRODUCTS];
-    const stockColIdx = prodHeaders.indexOf('currentStock') + 1;
+  // 2. Automatically Deduct Raw Materials (Recipe BOM) or Fallback to Product Stock
+  if (items.length > 0) {
+    const recipesData = getSheetData(SHEET_NAMES.RECIPES);
+    const rawMaterialsSheet = ss.getSheetByName(SHEET_NAMES.RAW_MATERIALS);
+    const rawMaterialsData = rawMaterialsSheet ? getSheetData(SHEET_NAMES.RAW_MATERIALS) : [];
+    const rmStockColIdx = SCHEMAS[SHEET_NAMES.RAW_MATERIALS].indexOf('currentStock') + 1;
 
-    if (stockColIdx > 0) {
-      items.forEach(item => {
-        const prodIndex = productsData.findIndex(p => 
-          String(p.code) === String(item.productCode || item.code) || 
-          String(p.name).toLowerCase() === String(item.productName || item.name).toLowerCase()
-        );
-        if (prodIndex !== -1) {
-          const currentStock = Number(productsData[prodIndex].currentStock || 0);
-          const newStock = Math.max(0, currentStock - Number(item.quantity || 1));
-          productsSheet.getRange(prodIndex + 2, stockColIdx).setValue(newStock);
+    items.forEach(item => {
+      const pCode = String(item.productCode || item.code || '');
+      const pName = String(item.productName || item.name || '').toLowerCase();
+      const itemQty = Number(item.quantity || 1);
+
+      const matchedRecipeIngredients = recipesData.filter(r => 
+        (pCode && String(r.productCode) === pCode) || 
+        (pName && String(r.productName || '').toLowerCase() === pName)
+      );
+
+      if (matchedRecipeIngredients.length > 0 && rawMaterialsSheet && rmStockColIdx > 0) {
+        // Deduct raw materials based on Recipe BOM
+        matchedRecipeIngredients.forEach(ing => {
+          const rmIdx = rawMaterialsData.findIndex(rm => 
+            String(rm.id) === String(ing.rawMaterialId) || 
+            String(rm.name).toLowerCase() === String(ing.rawMaterialName).toLowerCase()
+          );
+          if (rmIdx !== -1) {
+            const rm = rawMaterialsData[rmIdx];
+            const deductionPerUnit = convertRecipeQty(ing.quantity, ing.unit, rm.unit);
+            const totalDeduction = deductionPerUnit * itemQty;
+            const currentStock = Number(rm.currentStock || 0);
+            const newStock = Math.max(0, currentStock - totalDeduction);
+            rawMaterialsSheet.getRange(rmIdx + 2, rmStockColIdx).setValue(Number(newStock.toFixed(4)));
+            rawMaterialsData[rmIdx].currentStock = newStock;
+          }
+        });
+      } else if (productsSheet) {
+        // Fallback: direct product stock deduction
+        const productsData = getSheetData(SHEET_NAMES.PRODUCTS);
+        const prodHeaders = SCHEMAS[SHEET_NAMES.PRODUCTS];
+        const stockColIdx = prodHeaders.indexOf('currentStock') + 1;
+        if (stockColIdx > 0) {
+          const prodIndex = productsData.findIndex(p => 
+            (pCode && String(p.code) === pCode) || 
+            String(p.name).toLowerCase() === pName
+          );
+          if (prodIndex !== -1) {
+            const currentStock = Number(productsData[prodIndex].currentStock || 0);
+            const newStock = Math.max(0, currentStock - itemQty);
+            productsSheet.getRange(prodIndex + 2, stockColIdx).setValue(newStock);
+          }
         }
-      });
-    }
+      }
+    });
   }
 
   // 3. Update Customer Balance if Credit sale
@@ -819,7 +873,8 @@ function getAllDatabaseData() {
     purchases: getSheetData(SHEET_NAMES.PURCHASES),
     expenses: getSheetData(SHEET_NAMES.EXPENSES),
     customers: getSheetData(SHEET_NAMES.CUSTOMERS),
-    suppliers: getSheetData(SHEET_NAMES.SUPPLIERS)
+    suppliers: getSheetData(SHEET_NAMES.SUPPLIERS),
+    recipes: getSheetData(SHEET_NAMES.RECIPES)
   };
 }
 

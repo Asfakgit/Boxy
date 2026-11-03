@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { api, getDatabase, saveDatabase } from '../services/apiService';
+import { convertQuantity, calculateIngredientCost } from '../utils/unitConverter';
 
 const AppContext = createContext();
 
@@ -7,6 +8,7 @@ const getCollectionKey = (sheetName) => {
   const norm = String(sheetName || '').toLowerCase().replace(/[^a-z]/g, '');
   if (norm.includes('product')) return 'products';
   if (norm.includes('raw') || norm.includes('material')) return 'rawMaterials';
+  if (norm.includes('recipe')) return 'recipes';
   if (norm.includes('customer')) return 'customers';
   if (norm.includes('supplier')) return 'suppliers';
   if (norm.includes('expense')) return 'expenses';
@@ -96,7 +98,7 @@ export const AppProvider = ({ children }) => {
       if (cloudData && typeof cloudData === 'object') {
         setData(currentLocal => {
           const merged = { ...currentLocal, ...cloudData };
-          const keys = ['products', 'rawMaterials', 'sales', 'purchases', 'expenses', 'customers', 'suppliers', 'transactions'];
+          const keys = ['products', 'rawMaterials', 'sales', 'purchases', 'expenses', 'customers', 'suppliers', 'transactions', 'recipes'];
 
           keys.forEach(k => {
             const cloudList = Array.isArray(cloudData[k]) ? cloudData[k] : [];
@@ -221,6 +223,229 @@ export const AppProvider = ({ children }) => {
   };
 
   // ==========================================
+  // Recipe BOM & Live Inventory Validation
+  // ==========================================
+
+  const getRecipeForProduct = useCallback((productCode) => {
+    if (!productCode) return [];
+    const codeStr = String(productCode).trim();
+    return (data?.recipes || []).filter(r => String(r.productCode).trim() === codeStr);
+  }, [data?.recipes]);
+
+  const checkCartStockAvailability = useCallback((cartItems = []) => {
+    const rawMaterialsMap = new Map();
+    (data?.rawMaterials || []).forEach(rm => {
+      rawMaterialsMap.set(String(rm.id), {
+        id: String(rm.id),
+        name: rm.name,
+        currentStock: Number(rm.currentStock || 0),
+        unit: rm.unit || 'kg'
+      });
+    });
+
+    const neededMap = new Map(); // rawMaterialId -> { rawMaterialId, rawMaterialName, available, stockUnit, required }
+
+    (cartItems || []).forEach(item => {
+      const pCode = String(item.productCode || item.code || item.id || '').trim();
+      const pName = String(item.productName || item.name || '').trim().toLowerCase();
+      const itemQty = Number(item.quantity || 1);
+
+      const ingredients = (data?.recipes || []).filter(r => 
+        (pCode && String(r.productCode).trim() === pCode) ||
+        (pName && String(r.productName || '').trim().toLowerCase() === pName)
+      );
+
+      ingredients.forEach(ing => {
+        const rmId = String(ing.rawMaterialId);
+        const rm = rawMaterialsMap.get(rmId) || (data?.rawMaterials || []).find(m => String(m.name).toLowerCase() === String(ing.rawMaterialName).toLowerCase());
+        
+        if (rm) {
+          const key = String(rm.id);
+          const deductionPerServing = convertQuantity(ing.quantity, ing.unit, rm.unit);
+          const totalServingDeduction = deductionPerServing * itemQty;
+
+          if (!neededMap.has(key)) {
+            neededMap.set(key, {
+              rawMaterialId: key,
+              rawMaterialName: rm.name,
+              available: rm.currentStock,
+              stockUnit: rm.unit,
+              required: 0
+            });
+          }
+          const entry = neededMap.get(key);
+          entry.required = Number((entry.required + totalServingDeduction).toFixed(4));
+        }
+      });
+    });
+
+    const shortages = [];
+    neededMap.forEach(entry => {
+      if (entry.required > entry.available) {
+        shortages.push({
+          rawMaterialId: entry.rawMaterialId,
+          rawMaterialName: entry.rawMaterialName,
+          required: entry.required,
+          available: entry.available,
+          deficit: Number((entry.required - entry.available).toFixed(4)),
+          unit: entry.stockUnit
+        });
+      }
+    });
+
+    return {
+      isAvailable: shortages.length === 0,
+      shortages,
+      requiredIngredients: Array.from(neededMap.values())
+    };
+  }, [data?.rawMaterials, data?.recipes]);
+
+  const saveRecipe = async (productCode, productName, ingredients = []) => {
+    setIsLoading(true);
+    try {
+      const codeStr = String(productCode).trim();
+      const rows = ingredients.map((ing, idx) => ({
+        id: ing.id || `BOM-${codeStr}-${idx + 1}`,
+        productCode: codeStr,
+        productName: productName || ing.productName || 'Menu Item',
+        rawMaterialId: String(ing.rawMaterialId || ing.id),
+        rawMaterialName: ing.rawMaterialName || ing.name,
+        quantity: Number(ing.quantity || 0),
+        unit: ing.unit || 'pcs',
+        costPerUnit: Number(ing.costPerUnit || 0),
+        totalCost: Number(ing.totalCost || 0)
+      }));
+
+      setData(prev => {
+        const otherRecipes = (prev.recipes || []).filter(r => String(r.productCode).trim() !== codeStr);
+        const nextRecipes = [...otherRecipes, ...rows];
+        const nextDb = { ...prev, recipes: nextRecipes };
+        saveDatabase(nextDb);
+        return nextDb;
+      });
+
+      showToast(`Recipe saved for "${productName}" (${rows.length} ingredients)!`, 'success');
+
+      // Background sync to Google Sheets
+      for (const row of rows) {
+        try {
+          await api.saveRow('Recipes', row);
+        } catch (e) {
+          console.warn('Sync recipe row to cloud:', e);
+        }
+      }
+    } catch (err) {
+      showToast('Error saving recipe: ' + err.message, 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const deleteRecipe = async (productCode) => {
+    setIsLoading(true);
+    try {
+      const codeStr = String(productCode).trim();
+      const toDelete = (data?.recipes || []).filter(r => String(r.productCode).trim() === codeStr);
+
+      setData(prev => {
+        const nextRecipes = (prev.recipes || []).filter(r => String(r.productCode).trim() !== codeStr);
+        const nextDb = { ...prev, recipes: nextRecipes };
+        saveDatabase(nextDb);
+        return nextDb;
+      });
+
+      showToast('Recipe deleted successfully', 'success');
+
+      for (const r of toDelete) {
+        try {
+          await api.deleteRow('Recipes', r.id);
+        } catch (e) {
+          console.warn('Sync delete recipe:', e);
+        }
+      }
+    } catch (err) {
+      showToast('Error deleting recipe: ' + err.message, 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const refundAndRestockOrder = async (invoiceNumber) => {
+    setIsLoading(true);
+    try {
+      const sale = (data?.sales || []).find(s => s.invoiceNumber === invoiceNumber);
+      if (!sale) throw new Error('Order not found');
+
+      setData(prev => {
+        let nextRawMaterials = [...(prev.rawMaterials || [])];
+        const allRecipes = prev.recipes || [];
+        const restockTxns = [];
+
+        (sale.items || []).forEach(item => {
+          const pCode = String(item.productCode || item.code || item.id || '').trim();
+          const pName = String(item.productName || item.name || '').trim().toLowerCase();
+          const itemQty = Number(item.quantity || 1);
+
+          const matchedIngredients = allRecipes.filter(r => 
+            (pCode && String(r.productCode).trim() === pCode) ||
+            (pName && String(r.productName || '').trim().toLowerCase() === pName)
+          );
+
+          matchedIngredients.forEach(ing => {
+            const rmIdx = nextRawMaterials.findIndex(rm => 
+              String(rm.id) === String(ing.rawMaterialId) ||
+              String(rm.name).toLowerCase() === String(ing.rawMaterialName).toLowerCase()
+            );
+
+            if (rmIdx !== -1) {
+              const targetRm = nextRawMaterials[rmIdx];
+              const deductionPerUnit = convertQuantity(ing.quantity, ing.unit, targetRm.unit);
+              const totalRestock = Number((deductionPerUnit * itemQty).toFixed(4));
+              const currentStock = Number(targetRm.currentStock || 0);
+
+              nextRawMaterials[rmIdx] = {
+                ...targetRm,
+                currentStock: Number((currentStock + totalRestock).toFixed(4))
+              };
+
+              restockTxns.push({
+                id: `RESTOCK-${invoiceNumber}-${targetRm.id}`,
+                date: new Date().toISOString(),
+                flow: 'IN',
+                type: 'Recipe Restock',
+                partyName: `Cancelled Order #${invoiceNumber}`,
+                reference: invoiceNumber,
+                amount: Number((totalRestock * Number(targetRm.costPrice || 0)).toFixed(2)),
+                paymentMethod: 'Inventory Restock',
+                notes: `Restocked ${totalRestock} ${targetRm.unit} of ${targetRm.name} from cancelled order #${invoiceNumber}`
+              });
+            }
+          });
+        });
+
+        const nextSales = (prev.sales || []).map(s => 
+          s.invoiceNumber === invoiceNumber ? { ...s, status: 'Cancelled' } : s
+        );
+
+        const nextDb = {
+          ...prev,
+          sales: nextSales,
+          rawMaterials: nextRawMaterials,
+          transactions: [...(prev.transactions || []), ...restockTxns]
+        };
+        saveDatabase(nextDb);
+        return nextDb;
+      });
+
+      showToast(`Order #${invoiceNumber} cancelled & raw materials restored!`, 'success');
+    } catch (err) {
+      showToast('Error cancelling order: ' + err.message, 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // ==========================================
   // Optimistic CRUD & Business Action Handlers
   // ==========================================
 
@@ -247,6 +472,14 @@ export const AppProvider = ({ children }) => {
         salePayload.invoiceNumber = 'INV-' + Math.floor(Math.random() * 90000 + 10000);
       }
 
+      // 0. Idempotency Check: Prevent duplicate deductions on retries
+      const isAlreadyRecorded = (data?.sales || []).some(s => s.invoiceNumber === salePayload.invoiceNumber);
+      if (isAlreadyRecorded) {
+        console.warn(`Invoice ${salePayload.invoiceNumber} was already recorded. Skipping duplicate stock deduction.`);
+        setIsLoading(false);
+        return salePayload;
+      }
+
       const summary = (salePayload.items || []).map(i => `${i.quantity}x ${i.productName || i.name}`).join(', ');
 
       const txnPayload = {
@@ -265,9 +498,64 @@ export const AppProvider = ({ children }) => {
       setData(prev => {
         const nextSales = [salePayload, ...(prev.sales || [])];
         const nextTxns = [txnPayload, ...(prev.transactions || [])];
+        const allRecipes = prev.recipes || [];
 
-        // Deduct sold stock
+        // Track raw materials to deduct and log
+        let nextRawMaterials = [...(prev.rawMaterials || [])];
+        const bomConsumptionTxns = [];
+
+        (salePayload.items || []).forEach(item => {
+          const pCode = String(item.productCode || item.code || item.id || '').trim();
+          const pName = String(item.productName || item.name || '').trim().toLowerCase();
+          const itemQty = Number(item.quantity || 1);
+
+          // Find recipe for this item
+          const matchedIngredients = allRecipes.filter(r => 
+            (pCode && String(r.productCode).trim() === pCode) ||
+            (pName && String(r.productName || '').trim().toLowerCase() === pName)
+          );
+
+          if (matchedIngredients.length > 0) {
+            matchedIngredients.forEach(ing => {
+              const rmIdx = nextRawMaterials.findIndex(rm => 
+                String(rm.id) === String(ing.rawMaterialId) ||
+                String(rm.name).toLowerCase() === String(ing.rawMaterialName).toLowerCase()
+              );
+
+              if (rmIdx !== -1) {
+                const targetRm = nextRawMaterials[rmIdx];
+                const deductionPerUnit = convertQuantity(ing.quantity, ing.unit, targetRm.unit);
+                const totalDeduction = Number((deductionPerUnit * itemQty).toFixed(4));
+                const currentStock = Number(targetRm.currentStock || 0);
+                const updatedStock = Math.max(0, Number((currentStock - totalDeduction).toFixed(4)));
+
+                nextRawMaterials[rmIdx] = {
+                  ...targetRm,
+                  currentStock: updatedStock
+                };
+
+                // Add audit entry for this ingredient consumption
+                bomConsumptionTxns.push({
+                  id: `BOM-LOG-${salePayload.invoiceNumber}-${targetRm.id}`,
+                  date: salePayload.date,
+                  flow: 'OUT',
+                  type: 'Recipe Consumption',
+                  partyName: `${item.quantity}x ${item.productName || item.name}`,
+                  reference: salePayload.invoiceNumber,
+                  amount: Number((totalDeduction * Number(targetRm.costPrice || 0)).toFixed(2)),
+                  paymentMethod: 'Raw Inventory',
+                  notes: `Deducted ${totalDeduction} ${targetRm.unit} of ${targetRm.name} for ${item.quantity}x ${item.productName || item.name} (Inv #${salePayload.invoiceNumber})`
+                });
+              }
+            });
+          }
+        });
+
+        // Deduct sold stock from products IF product had manual stock and NO recipe was configured
         const nextProducts = (prev.products || []).map(p => {
+          const hasRecipe = allRecipes.some(r => String(r.productCode).trim() === String(p.code).trim());
+          if (hasRecipe) return p; // Skip product stock deduction when recipe-managed!
+
           const sold = (salePayload.items || []).find(i => 
             String(i.productCode || i.code) === String(p.code) ||
             String(i.productName || i.name).toLowerCase() === String(p.name).toLowerCase()
@@ -293,8 +581,9 @@ export const AppProvider = ({ children }) => {
         const nextDb = {
           ...prev,
           sales: nextSales,
-          transactions: nextTxns,
+          transactions: [...nextTxns, ...bomConsumptionTxns],
           products: nextProducts,
+          rawMaterials: nextRawMaterials,
           customers: nextCustomers
         };
         saveDatabase(nextDb);
@@ -302,7 +591,7 @@ export const AppProvider = ({ children }) => {
       });
 
       clearCart();
-      showToast(`Sale recorded! Invoice #${salePayload.invoiceNumber}`, 'success');
+      showToast(`Sale completed! Invoice #${salePayload.invoiceNumber} (Kitchen raw materials deducted)`, 'success');
       setIsLoading(false);
 
       // 2. Background sync to Google Sheets
@@ -757,6 +1046,11 @@ export const AppProvider = ({ children }) => {
       recordSupplierPayment,
       adjustStock,
       resetAllStockToZero,
+      saveRecipe,
+      deleteRecipe,
+      getRecipeForProduct,
+      checkCartStockAvailability,
+      refundAndRestockOrder,
       saveItem,
       deleteItem,
       saveSettings,

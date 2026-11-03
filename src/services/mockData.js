@@ -22,5 +22,6 @@ export const INITIAL_DATA = {
   purchases: [],
   expenses: [],
   customers: [],
-  suppliers: []
+  suppliers: [],
+  recipes: []
 };

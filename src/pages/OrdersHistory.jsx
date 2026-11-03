@@ -15,14 +15,16 @@ import {
   CloudUpload,
   ExternalLink,
   CheckCircle2,
-  RefreshCw
+  RefreshCw,
+  RotateCcw,
+  XCircle
 } from 'lucide-react';
 import { exportToCSV, prepareSalesDataForCSV } from '../utils/exportUtils';
 import { printOrderReceipt, formatWhatsAppReceipt } from '../utils/receiptPrinter';
 import { DEFAULT_SHEET_URL, api } from '../services/apiService';
 
 export const OrdersHistory = () => {
-  const { data, showToast } = useApp();
+  const { data, showToast, refundAndRestockOrder, showConfirmDialog } = useApp();
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [receiptModalOpen, setReceiptModalOpen] = useState(false);
   const [filterPayment, setFilterPayment] = useState('ALL');
@@ -134,10 +136,19 @@ export const OrdersHistory = () => {
       render: (r) => <Badge variant={r.paymentMethod === 'Credit' ? 'warning' : 'default'}>{r.paymentMethod || 'Cash'}</Badge>
     },
     {
+      header: 'Status',
+      accessor: 'status',
+      render: (r) => (
+        <Badge variant={r.status === 'Cancelled' ? 'danger' : 'success'}>
+          {r.status || 'Completed'}
+        </Badge>
+      )
+    },
+    {
       header: 'Actions',
       accessor: 'actions',
       render: (r) => (
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1">
           <Button
             size="sm"
             variant="ghost"
@@ -165,6 +176,26 @@ export const OrdersHistory = () => {
           >
             <Share2 className="w-4 h-4" />
           </a>
+          {r.status !== 'Cancelled' && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                showConfirmDialog({
+                  title: 'Cancel Order & Restock Raw Materials',
+                  itemName: `#${r.invoiceNumber}`,
+                  message: `Are you sure you want to cancel order #${r.invoiceNumber}? All raw materials consumed by this recipe will be automatically restored back to kitchen inventory.`,
+                  type: 'danger',
+                  confirmText: 'Yes, Cancel & Restock',
+                  onConfirm: () => refundAndRestockOrder(r.invoiceNumber)
+                });
+              }}
+              className="text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 p-1.5"
+              title="Cancel Order & Restock Raw Materials"
+            >
+              <RotateCcw className="w-4 h-4" />
+            </Button>
+          )}
         </div>
       )
     }
@@ -351,6 +382,29 @@ export const OrdersHistory = () => {
                 <Share2 className="w-3.5 h-3.5" />
                 <span>WhatsApp Share</span>
               </a>
+              {selectedOrder.status !== 'Cancelled' && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  icon={RotateCcw}
+                  onClick={() => {
+                    showConfirmDialog({
+                      title: 'Cancel Order & Restock Raw Materials',
+                      itemName: `#${selectedOrder.invoiceNumber}`,
+                      message: `Are you sure you want to cancel order #${selectedOrder.invoiceNumber}? All raw materials consumed by this recipe will be automatically restored back to kitchen inventory.`,
+                      type: 'danger',
+                      confirmText: 'Yes, Cancel & Restock',
+                      onConfirm: async () => {
+                        await refundAndRestockOrder(selectedOrder.invoiceNumber);
+                        setReceiptModalOpen(false);
+                      }
+                    });
+                  }}
+                  className="text-rose-600 border-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                >
+                  Cancel & Restock
+                </Button>
+              )}
               <Button size="sm" variant="secondary" onClick={() => setReceiptModalOpen(false)}>
                 Close
               </Button>

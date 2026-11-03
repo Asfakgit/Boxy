@@ -24,8 +24,12 @@ import {
   ChevronRight,
   FileText,
   CheckCircle2,
-  PieChart
+  PieChart,
+  ChefHat,
+  CookingPot,
+  AlertTriangle
 } from 'lucide-react';
+import { convertQuantity, calculateIngredientCost } from '../utils/unitConverter';
 
 // Robust date string normalizer (returns YYYY-MM-DD)
 const normalizeDate = (raw) => {
@@ -376,6 +380,190 @@ export const ReportingAnalytics = () => {
       ordersCount
     };
   }, [sales, purchases, expenses, customStartDate, customEndDate, customCategoryFilter, customPaymentFilter, customSearchTerm]);
+
+  // ==========================================
+  // 4. KITCHEN RECIPES & CONSUMPTION REPORT
+  // ==========================================
+  const [kitchenSubTab, setKitchenSubTab] = useState('stock'); // 'stock', 'product_consumption', 'invoice_consumption', 'recipe_costs'
+  const [kitchenSearch, setKitchenSearch] = useState('');
+
+  const kitchenData = useMemo(() => {
+    const rawMaterials = data?.rawMaterials || [];
+    const products = data?.products || [];
+    const recipes = data?.recipes || [];
+    const completedSales = sales.filter(s => s.status !== 'Cancelled');
+
+    // 1. Current Raw Materials Stock Status & Valuation
+    const stockReport = rawMaterials.map(rm => {
+      const current = Number(rm.currentStock || 0);
+      const min = Number(rm.minStock || 5);
+      const cost = Number(rm.costPrice || 0);
+      const totalValuation = current * cost;
+      let status = 'Healthy';
+      let statusVariant = 'success';
+      if (current <= 0) {
+        status = 'Depleted (Out of Stock)';
+        statusVariant = 'danger';
+      } else if (current <= min) {
+        status = 'Low Stock Alert';
+        statusVariant = 'warning';
+      }
+
+      return {
+        ...rm,
+        currentStock: current,
+        minStock: min,
+        costPrice: cost,
+        valuation: Number(totalValuation.toFixed(2)),
+        status,
+        statusVariant
+      };
+    });
+
+    const totalKitchenStockValuation = stockReport.reduce((s, r) => s + r.valuation, 0);
+    const lowStockIngredientsCount = stockReport.filter(r => r.currentStock <= r.minStock).length;
+
+    // 2. Product-wise Consumption
+    const productConsumptionMap = new Map();
+
+    completedSales.forEach(sale => {
+      (sale.items || []).forEach(item => {
+        const pCode = String(item.productCode || item.code || item.id || '').trim();
+        const pName = item.productName || item.name || 'Menu Dish';
+        const qty = Number(item.quantity || 1);
+
+        if (!productConsumptionMap.has(pCode)) {
+          productConsumptionMap.set(pCode, {
+            productCode: pCode,
+            productName: pName,
+            totalPortionsSold: 0,
+            ingredients: new Map()
+          });
+        }
+
+        const prodEntry = productConsumptionMap.get(pCode);
+        prodEntry.totalPortionsSold += qty;
+
+        const matchedRecipes = recipes.filter(r => 
+          (pCode && String(r.productCode).trim() === pCode) ||
+          String(r.productName || '').trim().toLowerCase() === pName.trim().toLowerCase()
+        );
+
+        matchedRecipes.forEach(ing => {
+          const rmKey = String(ing.rawMaterialId);
+          const rm = rawMaterials.find(m => String(m.id) === rmKey);
+          const targetUnit = ing.unit || 'pcs';
+          const singleServingQty = Number(ing.quantity || 0);
+          const totalQty = singleServingQty * qty;
+
+          if (!prodEntry.ingredients.has(rmKey)) {
+            prodEntry.ingredients.set(rmKey, {
+              rawMaterialId: rmKey,
+              rawMaterialName: ing.rawMaterialName,
+              totalQuantity: 0,
+              unit: targetUnit,
+              totalCost: 0
+            });
+          }
+
+          const ingEntry = prodEntry.ingredients.get(rmKey);
+          ingEntry.totalQuantity = Number((ingEntry.totalQuantity + totalQty).toFixed(4));
+          const unitCost = rm ? calculateIngredientCost(totalQty, targetUnit, rm.costPrice, rm.unit) : 0;
+          ingEntry.totalCost = Number((ingEntry.totalCost + unitCost).toFixed(2));
+        });
+      });
+    });
+
+    const productConsumptionList = Array.from(productConsumptionMap.values()).map(p => ({
+      ...p,
+      ingredientsList: Array.from(p.ingredients.values())
+    }));
+
+    // 3. Invoice-wise Consumption Audit
+    const invoiceConsumptionList = completedSales.map(sale => {
+      const consumedMap = new Map();
+      (sale.items || []).forEach(item => {
+        const pCode = String(item.productCode || item.code || item.id || '').trim();
+        const pName = String(item.productName || item.name || '').trim().toLowerCase();
+        const qty = Number(item.quantity || 1);
+
+        const matchedRecipes = recipes.filter(r => 
+          (pCode && String(r.productCode).trim() === pCode) ||
+          String(r.productName || '').trim().toLowerCase() === pName
+        );
+
+        matchedRecipes.forEach(ing => {
+          const rmKey = String(ing.rawMaterialId);
+          const rm = rawMaterials.find(m => String(m.id) === rmKey);
+          const targetUnit = ing.unit || 'pcs';
+          const totalQty = Number(ing.quantity || 0) * qty;
+
+          if (!consumedMap.has(rmKey)) {
+            consumedMap.set(rmKey, {
+              rawMaterialName: ing.rawMaterialName,
+              quantity: 0,
+              unit: targetUnit,
+              cost: 0
+            });
+          }
+
+          const entry = consumedMap.get(rmKey);
+          entry.quantity = Number((entry.quantity + totalQty).toFixed(4));
+          const cost = rm ? calculateIngredientCost(totalQty, targetUnit, rm.costPrice, rm.unit) : 0;
+          entry.cost = Number((entry.cost + cost).toFixed(2));
+        });
+      });
+
+      return {
+        invoiceNumber: sale.invoiceNumber,
+        date: sale.date,
+        customerName: sale.customerName,
+        totalAmount: sale.totalAmount,
+        itemsSummary: (sale.items || []).map(i => `${i.quantity}x ${i.productName || i.name}`).join(', '),
+        ingredients: Array.from(consumedMap.values()),
+        totalIngredientCost: Array.from(consumedMap.values()).reduce((sum, i) => sum + i.cost, 0)
+      };
+    });
+
+    // 4. Recipe Costing & Margin Report
+    const recipeCostingList = products.map(prod => {
+      const pCode = String(prod.code || prod.id || '').trim();
+      const ingredients = recipes.filter(r => String(r.productCode).trim() === pCode);
+      const hasRecipe = ingredients.length > 0;
+
+      const totalCost = ingredients.reduce((sum, ing) => {
+        const rm = rawMaterials.find(m => String(m.id) === String(ing.rawMaterialId));
+        return sum + (rm ? calculateIngredientCost(ing.quantity, ing.unit, rm.costPrice, rm.unit) : Number(ing.totalCost || 0));
+      }, 0);
+
+      const price = Number(prod.sellingPrice || 0);
+      const grossProfit = price - totalCost;
+      const marginPct = price > 0 ? ((grossProfit / price) * 100).toFixed(1) : 0;
+      const foodCostPct = price > 0 ? ((totalCost / price) * 100).toFixed(1) : 0;
+
+      return {
+        productCode: pCode,
+        productName: prod.name,
+        category: prod.category || 'Dishes',
+        sellingPrice: price,
+        recipeCost: Number(totalCost.toFixed(2)),
+        grossProfit: Number(grossProfit.toFixed(2)),
+        marginPct: Number(marginPct),
+        foodCostPct: Number(foodCostPct),
+        ingredientsCount: ingredients.length,
+        hasRecipe
+      };
+    });
+
+    return {
+      stockReport,
+      totalKitchenStockValuation,
+      lowStockIngredientsCount,
+      productConsumptionList,
+      invoiceConsumptionList,
+      recipeCostingList
+    };
+  }, [sales, data?.rawMaterials, data?.products, data?.recipes]);
 
   // ==========================================
   // PRINT & EXPORT HANDLERS
@@ -772,6 +960,18 @@ export const ReportingAnalytics = () => {
           >
             <CalendarRange className="w-4 h-4" />
             <span>Customized Report</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('kitchen')}
+            className={`flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+              activeTab === 'kitchen'
+                ? 'bg-white dark:bg-slate-900 text-rose-600 dark:text-rose-400 shadow-sm'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <ChefHat className="w-4 h-4 text-rose-500" />
+            <span>Kitchen & Consumption</span>
           </button>
         </div>
       </div>
@@ -1459,6 +1659,284 @@ export const ReportingAnalytics = () => {
                 ]}
                 data={customData.filteredSales}
                 emptyMessage="No sales match your custom filter."
+              />
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* 4. KITCHEN RECIPES & CONSUMPTION REPORT VIEW              */}
+      {/* ========================================================= */}
+      {activeTab === 'kitchen' && (
+        <div className="space-y-6 animate-fadeIn">
+          {/* Top Kitchen Metrics Banner */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Kitchen Stock Valuation</span>
+              <span className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-1 block">
+                {fmt(kitchenData.totalKitchenStockValuation)}
+              </span>
+              <span className="text-[11px] text-slate-400 mt-1 block">{kitchenData.stockReport.length} raw ingredients</span>
+            </div>
+
+            <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Low-Stock Alerts</span>
+              <span className={`text-xl sm:text-2xl font-black mt-1 block ${kitchenData.lowStockIngredientsCount > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                {kitchenData.lowStockIngredientsCount} Items
+              </span>
+              <span className="text-[11px] text-slate-400 mt-1 block">Below reorder alert level</span>
+            </div>
+
+            <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Recipes Configured</span>
+              <span className="text-xl sm:text-2xl font-black text-rose-600 dark:text-rose-400 mt-1 block">
+                {kitchenData.recipeCostingList.filter(r => r.hasRecipe).length} / {kitchenData.recipeCostingList.length}
+              </span>
+              <span className="text-[11px] text-slate-400 mt-1 block">Menu snacks with BOM</span>
+            </div>
+
+            <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Completed Orders</span>
+              <span className="text-xl sm:text-2xl font-black text-indigo-600 dark:text-indigo-400 mt-1 block">
+                {kitchenData.invoiceConsumptionList.length} Invoices
+              </span>
+              <span className="text-[11px] text-slate-400 mt-1 block">Tracked for consumption</span>
+            </div>
+          </div>
+
+          {/* Sub-Tabs Toolbar & Search */}
+          <div className="p-3 sm:p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+            <div className="flex items-center gap-1.5 overflow-x-auto max-w-full scrollbar-none py-0.5">
+              {[
+                { id: 'stock', label: 'Raw Materials Stock & Alerts', count: kitchenData.stockReport.length },
+                { id: 'product_consumption', label: 'Dish-Wise Consumption', count: kitchenData.productConsumptionList.length },
+                { id: 'invoice_consumption', label: 'Invoice-Wise Consumption', count: kitchenData.invoiceConsumptionList.length },
+                { id: 'recipe_costs', label: 'Recipe Costs & Margins', count: kitchenData.recipeCostingList.length }
+              ].map(sub => (
+                <button
+                  key={sub.id}
+                  onClick={() => setKitchenSubTab(sub.id)}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                    kitchenSubTab === sub.id
+                      ? 'bg-rose-600 text-white shadow-xs'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  {sub.label} ({sub.count})
+                </button>
+              ))}
+            </div>
+
+            {/* Export CSV for active view */}
+            <Button
+              size="sm"
+              variant="outline"
+              icon={Download}
+              onClick={() => {
+                let rows = [];
+                let filename = 'Kitchen_Report';
+                if (kitchenSubTab === 'stock') {
+                  filename = 'Kitchen_Raw_Materials_Stock';
+                  rows = kitchenData.stockReport.map(r => ({
+                    ID: r.id,
+                    Material_Name: r.name,
+                    Category: r.category,
+                    Current_Stock: r.currentStock,
+                    Unit: r.unit,
+                    Cost_Price: r.costPrice,
+                    Inventory_Valuation: r.valuation,
+                    Min_Alert_Level: r.minStock,
+                    Status: r.status
+                  }));
+                } else if (kitchenSubTab === 'product_consumption') {
+                  filename = 'Product_Wise_Ingredient_Consumption';
+                  rows = kitchenData.productConsumptionList.map(p => ({
+                    Product_Code: p.productCode,
+                    Product_Name: p.productName,
+                    Total_Portions_Sold: p.totalPortionsSold,
+                    Ingredients_Consumed: p.ingredientsList.map(i => `${i.totalQuantity} ${i.unit} ${i.rawMaterialName} (${fmt(i.totalCost)})`).join('; ')
+                  }));
+                } else if (kitchenSubTab === 'invoice_consumption') {
+                  filename = 'Invoice_Wise_Ingredient_Consumption';
+                  rows = kitchenData.invoiceConsumptionList.map(inv => ({
+                    Invoice_Number: inv.invoiceNumber,
+                    Date: inv.date,
+                    Customer: inv.customerName,
+                    Items: inv.itemsSummary,
+                    Ingredients_Deducted: inv.ingredients.map(i => `${i.quantity} ${i.unit} ${i.rawMaterialName}`).join('; '),
+                    Total_Ingredient_Cost: inv.totalIngredientCost
+                  }));
+                } else {
+                  filename = 'Recipe_Costing_And_Margins';
+                  rows = kitchenData.recipeCostingList.map(r => ({
+                    Product_Code: r.productCode,
+                    Product_Name: r.productName,
+                    Category: r.category,
+                    Selling_Price: r.sellingPrice,
+                    Recipe_Cost: r.recipeCost,
+                    Gross_Profit: r.grossProfit,
+                    Margin_Percent: `${r.marginPct}%`,
+                    Food_Cost_Percent: `${r.foodCostPct}%`,
+                    Status: r.hasRecipe ? 'Configured' : 'Missing Recipe'
+                  }));
+                }
+                exportToCSV(rows, `${filename}_${new Date().toISOString().split('T')[0]}`);
+              }}
+              className="text-xs shrink-0 border-slate-200 dark:border-slate-700"
+            >
+              Export CSV
+            </Button>
+          </div>
+
+          {/* Sub-Tab 1: Raw Materials Stock & Alerts */}
+          {kitchenSubTab === 'stock' && (
+            <Card title="Current Kitchen Raw Material Stock & Low-Stock Alerts" subtitle="Live tracking of ingredients and valuation">
+              <Table
+                columns={[
+                  { header: 'ID', accessor: 'id', render: (r) => <span className="font-mono text-xs">{r.id}</span> },
+                  { header: 'Material Name', accessor: 'name', render: (r) => <span className="font-extrabold text-xs text-slate-900 dark:text-white">{r.name}</span> },
+                  { header: 'Category', accessor: 'category', render: (r) => <Badge variant="warning">{r.category || 'General'}</Badge> },
+                  {
+                    header: 'Current Stock',
+                    accessor: 'currentStock',
+                    render: (r) => (
+                      <span className={`font-black text-sm ${r.currentStock <= r.minStock ? 'text-rose-600' : 'text-slate-800 dark:text-slate-200'}`}>
+                        {r.currentStock} {r.unit}
+                      </span>
+                    )
+                  },
+                  { header: 'Cost / Unit', accessor: 'costPrice', render: (r) => <span className="font-bold text-xs">{fmt(r.costPrice)} / {r.unit}</span> },
+                  { header: 'Stock Valuation', accessor: 'valuation', render: (r) => <span className="font-black text-xs text-emerald-600">{fmt(r.valuation)}</span> },
+                  { header: 'Min Alert', accessor: 'minStock', render: (r) => <span className="text-xs text-slate-400">{r.minStock} {r.unit}</span> },
+                  {
+                    header: 'Stock Status',
+                    accessor: 'status',
+                    render: (r) => <Badge variant={r.statusVariant}>{r.status}</Badge>
+                  }
+                ]}
+                data={kitchenData.stockReport}
+                emptyMessage="No raw materials registered in kitchen inventory."
+              />
+            </Card>
+          )}
+
+          {/* Sub-Tab 2: Product-Wise Ingredient Consumption */}
+          {kitchenSubTab === 'product_consumption' && (
+            <Card title="Product-Wise Ingredient Consumption" subtitle="Aggregated raw materials consumed per dish based on completed POS orders">
+              <Table
+                columns={[
+                  { header: 'Code', accessor: 'productCode', render: (r) => <span className="font-mono text-xs font-bold text-indigo-600">{r.productCode || '—'}</span> },
+                  { header: 'Dish / Snack', accessor: 'productName', render: (r) => <span className="font-extrabold text-xs text-slate-900 dark:text-white">{r.productName}</span> },
+                  { header: 'Portions Sold', accessor: 'totalPortionsSold', render: (r) => <Badge variant="info">{r.totalPortionsSold} Portions</Badge> },
+                  {
+                    header: 'Raw Materials Consumed (BOM Breakdown)',
+                    accessor: 'ingredientsList',
+                    render: (r) => (
+                      <div className="flex flex-wrap gap-1.5 py-1">
+                        {r.ingredientsList.length > 0 ? (
+                          r.ingredientsList.map((ing, i) => (
+                            <span key={i} className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[10px] font-bold text-slate-800 dark:text-slate-200">
+                              <strong>{ing.totalQuantity} {ing.unit}</strong> {ing.rawMaterialName} ({fmt(ing.totalCost)})
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-xs text-slate-400 italic">No recipe linked to dish</span>
+                        )}
+                      </div>
+                    )
+                  },
+                  {
+                    header: 'Total Ingredient Cost',
+                    accessor: 'totalCost',
+                    render: (r) => {
+                      const cost = r.ingredientsList.reduce((sum, i) => sum + i.totalCost, 0);
+                      return <span className="font-black text-xs text-rose-600">{fmt(cost)}</span>;
+                    }
+                  }
+                ]}
+                data={kitchenData.productConsumptionList}
+                emptyMessage="No dish consumption recorded yet. Complete POS orders to see ingredient consumption."
+              />
+            </Card>
+          )}
+
+          {/* Sub-Tab 3: Invoice-Wise Consumption Audit */}
+          {kitchenSubTab === 'invoice_consumption' && (
+            <Card title="Invoice-Wise Consumption Audit" subtitle="Detailed breakdown of ingredients deducted per POS checkout">
+              <Table
+                columns={[
+                  { header: 'Invoice #', accessor: 'invoiceNumber', render: (r) => <span className="font-mono font-bold text-indigo-600">{r.invoiceNumber}</span> },
+                  { header: 'Date', accessor: 'date', render: (r) => r.date ? new Date(r.date).toLocaleString('en-GB') : '—' },
+                  { header: 'Customer', accessor: 'customerName', render: (r) => r.customerName || 'Walk-in Customer' },
+                  { header: 'Dishes Prepared', accessor: 'itemsSummary', render: (r) => <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{r.itemsSummary}</span> },
+                  {
+                    header: 'Raw Materials Deducted',
+                    accessor: 'ingredients',
+                    render: (r) => (
+                      <div className="flex flex-wrap gap-1 py-1">
+                        {r.ingredients.length > 0 ? (
+                          r.ingredients.map((ing, i) => (
+                            <span key={i} className="px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400 border border-rose-200 dark:border-rose-800 text-[10px] font-bold">
+                              {ing.quantity} {ing.unit} {ing.rawMaterialName}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-xs text-slate-400 italic">No recipe ingredients deducted</span>
+                        )}
+                      </div>
+                    )
+                  },
+                  { header: 'Prep Cost', accessor: 'totalIngredientCost', render: (r) => <span className="font-black text-xs text-rose-600">{fmt(r.totalIngredientCost)}</span> },
+                  { header: 'Invoice Paid', accessor: 'totalAmount', render: (r) => <span className="font-black text-xs text-slate-900 dark:text-white">{fmt(r.totalAmount)}</span> }
+                ]}
+                data={kitchenData.invoiceConsumptionList}
+                emptyMessage="No invoice consumption logged yet."
+              />
+            </Card>
+          )}
+
+          {/* Sub-Tab 4: Recipe Costs & Margins */}
+          {kitchenSubTab === 'recipe_costs' && (
+            <Card title="Recipe Costing & Profit Margin Analysis" subtitle="Breakdown of raw ingredient preparation cost vs selling price for every menu item">
+              <Table
+                columns={[
+                  { header: 'Code', accessor: 'productCode', render: (r) => <span className="font-mono text-xs">{r.productCode}</span> },
+                  { header: 'Dish / Snack', accessor: 'productName', render: (r) => <span className="font-extrabold text-xs text-slate-900 dark:text-white">{r.productName}</span> },
+                  { header: 'Category', accessor: 'category', render: (r) => <Badge variant="warning">{r.category}</Badge> },
+                  { header: 'Selling Price', accessor: 'sellingPrice', render: (r) => <span className="font-black text-xs text-slate-900 dark:text-white">{fmt(r.sellingPrice)}</span> },
+                  { header: 'Recipe Cost', accessor: 'recipeCost', render: (r) => <span className="font-black text-xs text-rose-600">{fmt(r.recipeCost)}</span> },
+                  { header: 'Gross Profit', accessor: 'grossProfit', render: (r) => <span className="font-black text-xs text-emerald-600">{fmt(r.grossProfit)}</span> },
+                  {
+                    header: 'Margin %',
+                    accessor: 'marginPct',
+                    render: (r) => (
+                      <span className={`font-black text-xs ${r.marginPct >= 50 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                        {r.hasRecipe ? `${r.marginPct}%` : '—'}
+                      </span>
+                    )
+                  },
+                  {
+                    header: 'Food Cost %',
+                    accessor: 'foodCostPct',
+                    render: (r) => (
+                      <span className="font-bold text-xs text-slate-600 dark:text-slate-400">
+                        {r.hasRecipe ? `${r.foodCostPct}%` : '—'}
+                      </span>
+                    )
+                  },
+                  {
+                    header: 'BOM Status',
+                    accessor: 'hasRecipe',
+                    render: (r) => (
+                      <Badge variant={r.hasRecipe ? 'success' : 'warning'}>
+                        {r.hasRecipe ? `Active (${r.ingredientsCount} Ing.)` : 'No Recipe'}
+                      </Badge>
+                    )
+                  }
+                ]}
+                data={kitchenData.recipeCostingList}
+                emptyMessage="No menu products registered."
               />
             </Card>
           )}

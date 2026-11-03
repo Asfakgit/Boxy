@@ -24,12 +24,19 @@ import {
   ArrowRight,
   Calculator,
   ChevronDown,
-  RotateCcw
+  RotateCcw,
+  ChefHat,
+  CookingPot,
+  ScrollText,
+  Sparkles,
+  Layers,
+  BookOpen
 } from 'lucide-react';
+import { calculateIngredientCost, getCompatibleUnits, convertQuantity, UNIT_METADATA } from '../utils/unitConverter';
 
 export const ItemManagement = () => {
-  const { data, saveItem, deleteItem, adjustStock, resetAllStockToZero, showConfirmDialog, isLoading } = useApp();
-  const [activeTab, setActiveTab] = useState('stock'); // 'stock', 'products', 'materials', 'categories'
+  const { data, saveItem, deleteItem, adjustStock, resetAllStockToZero, saveRecipe, deleteRecipe, getRecipeForProduct, showConfirmDialog, isLoading } = useApp();
+  const [activeTab, setActiveTab] = useState('stock'); // 'stock', 'products', 'materials', 'categories', 'recipes'
   const [modalOpen, setModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [viewingItem, setViewingItem] = useState(null);
@@ -37,6 +44,13 @@ export const ItemManagement = () => {
   const [adjustTarget, setAdjustTarget] = useState(null);
   const [adjustDelta, setAdjustDelta] = useState('');
   const [adjustNotes, setAdjustNotes] = useState('');
+
+  // Recipe (BOM) Management State
+  const [recipeModalOpen, setRecipeModalOpen] = useState(false);
+  const [recipeEditingProduct, setRecipeEditingProduct] = useState(null);
+  const [recipeIngredients, setRecipeIngredients] = useState([]);
+  const [recipeSearch, setRecipeSearch] = useState('');
+  const [recipeFilterStatus, setRecipeFilterStatus] = useState('ALL'); // 'ALL', 'CONFIGURED', 'MISSING'
 
   // Category Look & Edit Management State
   const [editingCategory, setEditingCategory] = useState(null);
@@ -252,6 +266,138 @@ export const ItemManagement = () => {
     setIsCustomCategoryInput(false);
     setEditingItem(prev => ({ ...prev, category: name }));
     setNewCategoryName('');
+  };
+
+  // Recipe (BOM) List & Analytics Data
+  const recipesList = useMemo(() => {
+    return (data?.products || []).map(prod => {
+      const pCode = String(prod.code || prod.id || '').trim();
+      const ingredients = (data?.recipes || []).filter(r => String(r.productCode).trim() === pCode);
+      const hasRecipe = ingredients.length > 0;
+
+      const totalEstimatedCost = ingredients.reduce((sum, ing) => {
+        const rm = (data?.rawMaterials || []).find(m => String(m.id) === String(ing.rawMaterialId));
+        const cost = rm 
+          ? calculateIngredientCost(ing.quantity, ing.unit, rm.costPrice, rm.unit) 
+          : Number(ing.totalCost || 0);
+        return sum + cost;
+      }, 0);
+
+      const price = Number(prod.sellingPrice || 0);
+      const profitMargin = price > 0 ? ((price - totalEstimatedCost) / price) * 100 : 0;
+
+      return {
+        product: prod,
+        hasRecipe,
+        ingredients,
+        ingredientCount: ingredients.length,
+        totalCost: Number(totalEstimatedCost.toFixed(2)),
+        sellingPrice: price,
+        margin: Number(Math.max(0, profitMargin).toFixed(1))
+      };
+    });
+  }, [data?.products, data?.recipes, data?.rawMaterials]);
+
+  const configuredRecipesCount = useMemo(() => {
+    return recipesList.filter(r => r.hasRecipe).length;
+  }, [recipesList]);
+
+  const filteredRecipes = useMemo(() => {
+    return recipesList.filter(item => {
+      const term = recipeSearch.toLowerCase().trim();
+      const matchesSearch = !term || 
+        item.product.name.toLowerCase().includes(term) ||
+        String(item.product.code || '').toLowerCase().includes(term) ||
+        String(item.product.category || '').toLowerCase().includes(term);
+
+      if (recipeFilterStatus === 'CONFIGURED') return matchesSearch && item.hasRecipe;
+      if (recipeFilterStatus === 'MISSING') return matchesSearch && !item.hasRecipe;
+      return matchesSearch;
+    });
+  }, [recipesList, recipeSearch, recipeFilterStatus]);
+
+  const handleOpenRecipeModal = (product) => {
+    const pCode = String(product.code || product.id).trim();
+    const existing = (data?.recipes || []).filter(r => String(r.productCode).trim() === pCode);
+    setRecipeEditingProduct(product);
+
+    if (existing && existing.length > 0) {
+      setRecipeIngredients(existing.map(r => {
+        const rm = (data?.rawMaterials || []).find(m => String(m.id) === String(r.rawMaterialId));
+        return {
+          id: r.id,
+          rawMaterialId: r.rawMaterialId,
+          rawMaterialName: r.rawMaterialName,
+          quantity: r.quantity,
+          unit: r.unit,
+          costPerUnit: rm ? Number(rm.costPrice || 0) : Number(r.costPerUnit || 0),
+          totalCost: rm ? calculateIngredientCost(r.quantity, r.unit, rm.costPrice, rm.unit) : Number(r.totalCost || 0)
+        };
+      }));
+    } else {
+      const firstRm = data?.rawMaterials?.[0];
+      setRecipeIngredients(firstRm ? [{
+        rawMaterialId: firstRm.id,
+        rawMaterialName: firstRm.name,
+        quantity: '1',
+        unit: firstRm.unit || 'pcs',
+        costPerUnit: Number(firstRm.costPrice || 0),
+        totalCost: Number(firstRm.costPrice || 0)
+      }] : []);
+    }
+    setRecipeModalOpen(true);
+  };
+
+  const handleAddIngredientRow = () => {
+    const firstRm = data?.rawMaterials?.[0];
+    if (!firstRm) return;
+    setRecipeIngredients(prev => [
+      ...prev,
+      {
+        rawMaterialId: firstRm.id,
+        rawMaterialName: firstRm.name,
+        quantity: '1',
+        unit: firstRm.unit || 'pcs',
+        costPerUnit: Number(firstRm.costPrice || 0),
+        totalCost: Number(firstRm.costPrice || 0)
+      }
+    ]);
+  };
+
+  const handleUpdateIngredientRow = (index, field, value) => {
+    setRecipeIngredients(prev => {
+      const updated = [...prev];
+      const row = { ...updated[index], [field]: value };
+
+      if (field === 'rawMaterialId') {
+        const rm = (data?.rawMaterials || []).find(m => String(m.id) === String(value));
+        if (rm) {
+          row.rawMaterialName = rm.name;
+          row.unit = rm.unit || 'pcs';
+          row.costPerUnit = Number(rm.costPrice || 0);
+        }
+      }
+
+      const rm = (data?.rawMaterials || []).find(m => String(m.id) === String(row.rawMaterialId));
+      if (rm) {
+        row.totalCost = calculateIngredientCost(row.quantity, row.unit, rm.costPrice, rm.unit);
+      }
+
+      updated[index] = row;
+      return updated;
+    });
+  };
+
+  const handleRemoveIngredientRow = (index) => {
+    setRecipeIngredients(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSaveRecipeSubmit = async (e) => {
+    e.preventDefault();
+    if (!recipeEditingProduct) return;
+    const pCode = recipeEditingProduct.code || recipeEditingProduct.id;
+    await saveRecipe(pCode, recipeEditingProduct.name, recipeIngredients);
+    setRecipeModalOpen(false);
   };
 
   // Open "Look / View Details" Modal
@@ -602,6 +748,18 @@ export const ItemManagement = () => {
           <Tag className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
           <span>Categories ({categoriesSummary.length})</span>
         </button>
+
+        <button
+          onClick={() => { setActiveTab('recipes'); setCategoryFilter(''); }}
+          className={`flex items-center gap-2 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl font-bold text-xs whitespace-nowrap shrink-0 transition-all ${
+            activeTab === 'recipes'
+              ? 'bg-white dark:bg-slate-900 text-rose-600 dark:text-rose-400 shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+          }`}
+        >
+          <ChefHat className="w-4 h-4 text-rose-500" />
+          <span>Recipes / BOM ({configuredRecipesCount}/{data?.products?.length || 0})</span>
+        </button>
       </div>
 
       {/* Category Active Filter Banner */}
@@ -864,6 +1022,13 @@ export const ItemManagement = () => {
                       <Sliders className="w-4 h-4" />
                     </button>
                     <button
+                      onClick={() => handleOpenRecipeModal(r)}
+                      title="Configure Recipe (BOM Ingredients)"
+                      className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/50 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 transition-colors"
+                    >
+                      <ChefHat className="w-4 h-4" />
+                    </button>
+                    <button
                       onClick={() => {
                         showConfirmDialog({
                           title: 'Delete Menu Item',
@@ -966,6 +1131,13 @@ export const ItemManagement = () => {
                       className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors"
                     >
                       <Sliders className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleOpenRecipeModal(r)}
+                      title="Configure Recipe (BOM Ingredients)"
+                      className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/50 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 transition-colors"
+                    >
+                      <ChefHat className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => {
@@ -1131,6 +1303,200 @@ export const ItemManagement = () => {
                 <div className="col-span-full py-16 text-center text-slate-400 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
                   <Tag className="w-8 h-8 text-slate-300 mx-auto mb-2" />
                   <p className="text-sm font-semibold">No categories match your search.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ======================================================== */}
+        {/* RECIPES (BOM) TAB — Live Food Preparation Configurations */}
+        {/* ======================================================== */}
+        {activeTab === 'recipes' && (
+          <div className="space-y-5 animate-fadeIn">
+            {/* Header Informational Banner & Metrics */}
+            <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-rose-500/10 via-amber-500/10 to-indigo-500/10 border border-rose-200/80 dark:border-rose-900/60 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <ChefHat className="w-5 h-5 text-rose-600 dark:text-rose-400" />
+                  <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
+                    Recipe-Based Live Food Preparation (BOM)
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 max-w-2xl leading-relaxed">
+                  Snacks are freshly prepared on-demand. Configure the raw materials and exact quantities required per portion. When a customer orders at POS, the system automatically validates and deducts the ingredients from kitchen inventory.
+                </p>
+              </div>
+
+              {/* Fast Stats */}
+              <div className="flex items-center gap-3 shrink-0">
+                <div className="px-3.5 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs text-center">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Configured</span>
+                  <span className="text-sm font-black text-rose-600 dark:text-rose-400">{configuredRecipesCount} / {data?.products?.length || 0}</span>
+                </div>
+                <div className="px-3.5 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-2xs text-center">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Raw Materials</span>
+                  <span className="text-sm font-black text-amber-600 dark:text-amber-400">{data?.rawMaterials?.length || 0} items</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Filter & Search Toolbar */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+              <div className="relative flex-1 max-w-md">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  value={recipeSearch}
+                  onChange={(e) => setRecipeSearch(e.target.value)}
+                  placeholder="Search snacks by name, code, or category..."
+                  className="w-full pl-10 pr-4 py-2.5 text-xs bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 shadow-2xs font-medium text-slate-900 dark:text-white"
+                />
+              </div>
+
+              {/* Status Filter Tabs */}
+              <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
+                {[
+                  { id: 'ALL', label: `All (${recipesList.length})` },
+                  { id: 'CONFIGURED', label: `Configured (${configuredRecipesCount})` },
+                  { id: 'MISSING', label: `Needs Recipe (${recipesList.length - configuredRecipesCount})` }
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setRecipeFilterStatus(tab.id)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                      recipeFilterStatus === tab.id
+                        ? 'bg-white dark:bg-slate-900 text-rose-600 dark:text-rose-400 shadow-2xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Recipe Cards Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredRecipes.map(({ product, hasRecipe, ingredients, totalCost, sellingPrice, margin }) => (
+                <div
+                  key={product.code || product.id}
+                  className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4 shadow-xs hover:border-rose-400 hover:shadow-md transition-all flex flex-col justify-between"
+                >
+                  <div className="space-y-3">
+                    {/* Header: Photo, Name, Code & Badge */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        {product.image ? (
+                          <img src={product.image} alt={product.name} className="w-12 h-12 rounded-xl object-cover border border-slate-200 dark:border-slate-700 shrink-0" />
+                        ) : (
+                          <div className="w-12 h-12 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center justify-center font-bold text-xs shrink-0 border border-rose-200/60 dark:border-rose-900/40">
+                            <ChefHat className="w-6 h-6" />
+                          </div>
+                        )}
+                        <div>
+                          <h4 className="font-extrabold text-sm text-slate-900 dark:text-white line-clamp-1">{product.name}</h4>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="font-mono text-[10px] text-slate-400">{product.code}</span>
+                            <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-bold">
+                              {product.category || 'Dishes'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Status Badge */}
+                      {hasRecipe ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 shrink-0">
+                          <CheckCircle2 className="w-3 h-3" /> {ingredients.length} Ing.
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400 border border-amber-200 dark:border-amber-800 shrink-0">
+                          <AlertTriangle className="w-3 h-3" /> No Recipe
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Financial Economics (Cost, Price, Profit Margin) */}
+                    <div className="grid grid-cols-3 gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/60 text-center">
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-semibold block">Selling Price</span>
+                        <span className="text-xs font-black text-slate-800 dark:text-slate-200">{fmt(sellingPrice)}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-semibold block">Recipe Cost</span>
+                        <span className="text-xs font-black text-rose-600 dark:text-rose-400">{fmt(totalCost)}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-semibold block">Margin</span>
+                        <span className={`text-xs font-black ${margin >= 50 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                          {hasRecipe ? `${margin}%` : '—'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Ingredients Preview */}
+                    <div>
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-1.5">
+                        Ingredients Required per Portion:
+                      </span>
+                      {hasRecipe ? (
+                        <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto pr-1">
+                          {ingredients.map((ing, i) => (
+                            <span
+                              key={i}
+                              className="px-2 py-0.5 rounded-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[10px] font-bold text-slate-700 dark:text-slate-300 shadow-2xs"
+                            >
+                              <strong>{ing.quantity} {ing.unit}</strong> {ing.rawMaterialName}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-slate-400 italic py-1">
+                          No recipe configured. Raw materials will not be automatically deducted when this snack is ordered.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Actions Bar */}
+                  <div className="flex items-center gap-2 pt-3 mt-3 border-t border-slate-100 dark:border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenRecipeModal(product)}
+                      className="flex-1 py-2 px-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5"
+                    >
+                      <ChefHat className="w-3.5 h-3.5" />
+                      <span>{hasRecipe ? 'Edit Recipe (BOM)' : 'Configure Recipe'}</span>
+                    </button>
+
+                    {hasRecipe && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          showConfirmDialog({
+                            title: 'Delete Recipe BOM',
+                            itemName: product.name,
+                            message: `Are you sure you want to remove the recipe ingredients for "${product.name}"? Raw materials will no longer be deducted for this snack.`,
+                            type: 'delete',
+                            confirmText: 'Yes, Delete Recipe',
+                            onConfirm: () => deleteRecipe(product.code || product.id)
+                          });
+                        }}
+                        title="Delete Recipe"
+                        className="p-2 rounded-xl bg-slate-100 hover:bg-rose-50 dark:bg-slate-800 dark:hover:bg-rose-950/40 text-slate-500 hover:text-rose-600 transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+
+              {filteredRecipes.length === 0 && (
+                <div className="col-span-full py-16 text-center text-slate-400 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
+                  <ChefHat className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                  <p className="text-sm font-semibold">No menu snacks match your filter criteria.</p>
                 </div>
               )}
             </div>
@@ -1907,6 +2273,189 @@ export const ItemManagement = () => {
               </Button>
               <Button type="submit" variant="primary">
                 Create & Add Item
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* RECIPE BUILDER & BOM CONFIGURATION MODAL */}
+      {recipeModalOpen && recipeEditingProduct && (
+        <Modal
+          isOpen={recipeModalOpen}
+          onClose={() => setRecipeModalOpen(false)}
+          title={`Recipe (BOM) — ${recipeEditingProduct.name}`}
+          subtitle="Configure raw materials required to prepare 1 unit of this snack. Deducted automatically upon POS sale."
+        >
+          <form onSubmit={handleSaveRecipeSubmit} className="space-y-4 pt-1">
+            {/* Dish Header Info Card */}
+            <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/70">
+              <div className="flex items-center gap-3">
+                {recipeEditingProduct.image ? (
+                  <img src={recipeEditingProduct.image} alt="" className="w-10 h-10 rounded-lg object-cover border" />
+                ) : (
+                  <div className="w-10 h-10 rounded-lg bg-rose-100 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 flex items-center justify-center font-bold">
+                    <ChefHat className="w-5 h-5" />
+                  </div>
+                )}
+                <div>
+                  <h4 className="font-extrabold text-sm text-slate-900 dark:text-white leading-tight">{recipeEditingProduct.name}</h4>
+                  <span className="text-[11px] text-slate-400 font-mono">{recipeEditingProduct.code} &bull; {recipeEditingProduct.category || 'Dishes'}</span>
+                </div>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] text-slate-400 font-bold uppercase block">Selling Price</span>
+                <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">{fmt(recipeEditingProduct.sellingPrice)}</span>
+              </div>
+            </div>
+
+            {/* Ingredients Table */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-extrabold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                  <CookingPot className="w-4 h-4 text-rose-500" /> Required Raw Materials ({recipeIngredients.length})
+                </label>
+                <Button
+                  type="button"
+                  onClick={handleAddIngredientRow}
+                  variant="outline"
+                  size="sm"
+                  icon={Plus}
+                  className="text-xs py-1 px-2.5 border-rose-300 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                >
+                  Add Ingredient
+                </Button>
+              </div>
+
+              {recipeIngredients.length === 0 ? (
+                <div className="p-6 text-center rounded-xl border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/40">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mb-2">
+                    No ingredients added yet. Click below to add raw materials required to cook this dish.
+                  </p>
+                  <Button type="button" onClick={handleAddIngredientRow} variant="outline" size="sm" icon={Plus}>
+                    Add First Raw Material
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
+                  {recipeIngredients.map((row, idx) => {
+                    const rawMat = (data?.rawMaterials || []).find(m => String(m.id) === String(row.rawMaterialId));
+                    const stockUnit = rawMat?.unit || 'pcs';
+                    const compatibleUnits = getCompatibleUnits(stockUnit);
+
+                    return (
+                      <div
+                        key={idx}
+                        className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 grid grid-cols-12 gap-2.5 items-center"
+                      >
+                        {/* Raw Material Select (Cols 5) */}
+                        <div className="col-span-12 sm:col-span-5">
+                          <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-0.5">
+                            Raw Material
+                          </label>
+                          <select
+                            required
+                            value={row.rawMaterialId}
+                            onChange={(e) => handleUpdateIngredientRow(idx, 'rawMaterialId', e.target.value)}
+                            className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg font-bold text-slate-800 dark:text-white"
+                          >
+                            {(data?.rawMaterials || []).map(rm => (
+                              <option key={rm.id} value={rm.id}>
+                                {rm.name} ({rm.currentStock || 0} {rm.unit} in stock)
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Quantity (Cols 3) */}
+                        <div className="col-span-6 sm:col-span-3">
+                          <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-0.5">
+                            Portion Qty
+                          </label>
+                          <input
+                            type="number"
+                            step="any"
+                            min="0.0001"
+                            required
+                            value={row.quantity}
+                            onChange={(e) => handleUpdateIngredientRow(idx, 'quantity', e.target.value)}
+                            placeholder="e.g. 20"
+                            className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg font-black text-rose-600 dark:text-rose-400"
+                          />
+                        </div>
+
+                        {/* Unit Select (Cols 2) */}
+                        <div className="col-span-4 sm:col-span-2">
+                          <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-0.5">
+                            Unit
+                          </label>
+                          <select
+                            value={row.unit}
+                            onChange={(e) => handleUpdateIngredientRow(idx, 'unit', e.target.value)}
+                            className="w-full px-2 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg font-bold text-slate-800 dark:text-white"
+                          >
+                            {compatibleUnits.map(u => (
+                              <option key={u} value={u}>{u}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Ingredient Cost & Delete (Cols 2) */}
+                        <div className="col-span-2 sm:col-span-2 flex items-center justify-end gap-1.5 pt-3 sm:pt-0">
+                          <div className="text-right">
+                            <span className="text-[10px] text-slate-400 font-bold block">Cost</span>
+                            <span className="text-xs font-black text-slate-800 dark:text-slate-200">{fmt(row.totalCost)}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveIngredientRow(idx)}
+                            className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                            title="Remove Ingredient"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Real-time Recipe Financial Economics Card */}
+            {recipeIngredients.length > 0 && (() => {
+              const totalRecipeCost = recipeIngredients.reduce((s, i) => s + Number(i.totalCost || 0), 0);
+              const sellingPrice = Number(recipeEditingProduct.sellingPrice || 0);
+              const profitMargin = sellingPrice - totalRecipeCost;
+              const marginPct = sellingPrice > 0 ? ((profitMargin / sellingPrice) * 100).toFixed(1) : 0;
+              const foodCostPct = sellingPrice > 0 ? ((totalRecipeCost / sellingPrice) * 100).toFixed(1) : 0;
+
+              return (
+                <div className="p-3.5 rounded-xl bg-gradient-to-r from-rose-50 to-indigo-50 dark:from-rose-950/30 dark:to-indigo-950/30 border border-rose-200/80 dark:border-rose-900/60 space-y-2">
+                  <div className="flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-400">
+                    <span>Recipe Food Cost:</span>
+                    <span className="font-black text-rose-600 dark:text-rose-400">{fmt(totalRecipeCost)} ({foodCostPct}% Food Cost)</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-400">
+                    <span>Menu Selling Price:</span>
+                    <span className="font-black text-slate-900 dark:text-white">{fmt(sellingPrice)}</span>
+                  </div>
+                  <div className="pt-2 border-t border-rose-200/60 dark:border-rose-900/60 flex items-center justify-between">
+                    <span className="text-xs font-extrabold text-slate-900 dark:text-white">Estimated Gross Profit:</span>
+                    <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">
+                      {fmt(profitMargin)} ({marginPct}% Margin)
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <Button type="button" variant="ghost" onClick={() => setRecipeModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="primary" icon={CheckCircle2}>
+                Save Recipe (BOM)
               </Button>
             </div>
           </form>

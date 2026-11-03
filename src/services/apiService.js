@@ -37,6 +37,9 @@ export const getDatabase = () => {
         currentStock: rm.currentStock !== undefined && rm.currentStock !== '' ? Number(rm.currentStock) : 0
       }));
     }
+    if (!Array.isArray(parsed.recipes)) {
+      parsed.recipes = [];
+    }
     return { ...INITIAL_DATA, ...parsed };
   } catch {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_DATA));

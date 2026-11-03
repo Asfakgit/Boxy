@@ -17,7 +17,10 @@ import {
   CheckCircle2,
   UserCheck,
   X,
-  RotateCcw
+  RotateCcw,
+  ChefHat,
+  CookingPot,
+  AlertTriangle
 } from 'lucide-react';
 import { printOrderReceipt, formatWhatsAppReceipt } from '../utils/receiptPrinter';
 
@@ -37,6 +40,7 @@ export const POS = () => {
     paymentMethod,
     setPaymentMethod,
     recordPOSSale,
+    checkCartStockAvailability,
     isLoading
   } = useApp();
 
@@ -48,6 +52,7 @@ export const POS = () => {
   const [receiptModalOpen, setReceiptModalOpen] = useState(false);
   const [customerModalOpen, setCustomerModalOpen] = useState(false);
   const [lastOrder, setLastOrder] = useState(null);
+  const [shortageWarning, setShortageWarning] = useState(null);
 
   const currency = data?.settings?.currencySymbol || '₹';
   const defaultTaxRate = Number(data?.settings?.taxRate ?? 0);
@@ -88,33 +93,50 @@ export const POS = () => {
   const taxAmount = taxRate > 0 ? (taxableAmount * taxRate) / 100 : 0;
   const totalAmount = taxableAmount + taxAmount;
 
-  const handleCheckout = async () => {
+  const handleCheckout = () => {
     if (cart.length === 0) return;
 
-    try {
-      const invoiceNumber = 'INV-' + Math.floor(Math.random() * 90000 + 10000);
-      const salePayload = {
-        date: new Date().toISOString(),
-        invoiceNumber,
-        customerId: selectedCustomer ? selectedCustomer.id : 'WALKIN',
-        customerName: selectedCustomer ? (selectedCustomer.shopName || selectedCustomer.name) : 'Walk-in Customer',
-        subtotal,
-        discount: discountVal,
-        taxRate,
-        taxAmount,
-        totalAmount,
-        paymentMethod,
-        items: cart.map(item => ({
-          ...item,
-          quantity: Math.max(1, Number(item.quantity) || 1)
-        }))
-      };
+    const invoiceNumber = 'INV-' + Math.floor(Math.random() * 90000 + 10000);
+    const salePayload = {
+      date: new Date().toISOString(),
+      invoiceNumber,
+      customerId: selectedCustomer ? selectedCustomer.id : 'WALKIN',
+      customerName: selectedCustomer ? (selectedCustomer.shopName || selectedCustomer.name) : 'Walk-in Customer',
+      subtotal,
+      discount: discountVal,
+      taxRate,
+      taxAmount,
+      totalAmount,
+      paymentMethod,
+      items: cart.map(item => ({
+        ...item,
+        quantity: Math.max(1, Number(item.quantity) || 1)
+      }))
+    };
 
+    // Pre-checkout Kitchen Raw Material Validation
+    if (checkCartStockAvailability) {
+      const check = checkCartStockAvailability(cart);
+      if (!check.isAvailable && check.shortages.length > 0) {
+        setShortageWarning({
+          shortages: check.shortages,
+          salePayload
+        });
+        return;
+      }
+    }
+
+    executeCheckout(salePayload);
+  };
+
+  const executeCheckout = async (salePayload) => {
+    try {
       await recordPOSSale(salePayload);
       setLastOrder(salePayload);
       setReceiptModalOpen(true);
+      setShortageWarning(null);
     } catch (e) {
-      console.error(e);
+      console.error('POS Checkout Error:', e);
     }
   };
 
@@ -215,24 +237,40 @@ export const POS = () => {
                           <img src={data?.settings?.logo || '/logo.jpg'} alt="Boxy Logo" className="w-12 h-12 rounded-xl object-cover opacity-85 group-hover:scale-110 transition-transform duration-200 shadow-2xs" />
                         </div>
                       )}
-                      {/* Live Stock Level Badge */}
-                      {prod.currentStock !== undefined && prod.currentStock !== '' && (
-                        <div className="absolute top-1.5 left-1.5">
-                          {Number(prod.currentStock) <= 0 ? (
-                            <span className="px-2 py-0.5 rounded-full bg-rose-600 text-white text-[9px] font-black shadow-xs">
-                              Out of Stock
-                            </span>
-                          ) : Number(prod.currentStock) <= Number(prod.minStock || 5) ? (
-                            <span className="px-2 py-0.5 rounded-full bg-amber-500 text-white text-[9px] font-black shadow-xs">
-                              {prod.currentStock} left
-                            </span>
-                          ) : (
-                            <span className="px-2 py-0.5 rounded-full bg-slate-900/70 backdrop-blur-xs text-white text-[9px] font-bold shadow-xs">
-                              {prod.currentStock} {prod.unit || 'in stock'}
-                            </span>
-                          )}
-                        </div>
-                      )}
+                      {/* Live Prep or Finished Stock Badge */}
+                      {(() => {
+                        const hasRecipe = (data?.recipes || []).some(r => String(r.productCode).trim() === String(prod.code || prod.id).trim());
+                        if (hasRecipe) {
+                          return (
+                            <div className="absolute top-1.5 left-1.5">
+                              <span className="px-2 py-0.5 rounded-full bg-rose-600/90 backdrop-blur-xs text-white text-[9px] font-black shadow-xs flex items-center gap-1">
+                                <ChefHat className="w-2.5 h-2.5" /> Live Prep
+                              </span>
+                            </div>
+                          );
+                        }
+
+                        if (prod.currentStock !== undefined && prod.currentStock !== '') {
+                          return (
+                            <div className="absolute top-1.5 left-1.5">
+                              {Number(prod.currentStock) <= 0 ? (
+                                <span className="px-2 py-0.5 rounded-full bg-rose-600 text-white text-[9px] font-black shadow-xs">
+                                  Out of Stock
+                                </span>
+                              ) : Number(prod.currentStock) <= Number(prod.minStock || 5) ? (
+                                <span className="px-2 py-0.5 rounded-full bg-amber-500 text-white text-[9px] font-black shadow-xs">
+                                  {prod.currentStock} left
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded-full bg-slate-900/70 backdrop-blur-xs text-white text-[9px] font-bold shadow-xs">
+                                  {prod.currentStock} {prod.unit || 'in stock'}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
                     <h4 className="font-bold text-xs text-slate-900 dark:text-white line-clamp-1">{prod.name}</h4>
                     <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono mt-0.5">
@@ -676,6 +714,67 @@ export const POS = () => {
                 onClick={() => setReceiptModalOpen(false)}
               >
                 Next Order
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* KITCHEN RAW MATERIAL SHORTAGE WARNING MODAL */}
+      {shortageWarning && (
+        <Modal
+          isOpen={Boolean(shortageWarning)}
+          onClose={() => setShortageWarning(null)}
+          title="⚠️ Kitchen Raw Material Shortage Alert"
+          subtitle="One or more ingredients in inventory are below the quantities needed to prepare this order."
+        >
+          <div className="space-y-4 pt-1">
+            <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-300">
+              <div className="flex items-center gap-2 font-bold mb-1">
+                <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                <span>Insufficient Stock for Live Preparation</span>
+              </div>
+              <p className="text-[11px] text-amber-700/90 dark:text-amber-400">
+                You can still proceed with Manager Override if more ingredients are being restocked, or adjust the cart quantities.
+              </p>
+            </div>
+
+            {/* Shortages List */}
+            <div className="space-y-2 max-h-60 overflow-y-auto">
+              {shortageWarning.shortages.map((item, idx) => (
+                <div
+                  key={idx}
+                  className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 flex items-center justify-between"
+                >
+                  <div>
+                    <h5 className="font-extrabold text-xs text-slate-900 dark:text-white">{item.rawMaterialName}</h5>
+                    <span className="text-[11px] text-slate-400">
+                      Required: <strong className="text-slate-700 dark:text-slate-300">{item.required} {item.unit}</strong> &bull; Available: <span className="text-rose-600 font-bold">{item.available} {item.unit}</span>
+                    </span>
+                  </div>
+                  <div className="px-2.5 py-1 rounded-lg bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800 text-xs font-black">
+                    Short by {item.deficit} {item.unit}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShortageWarning(null)}
+              >
+                Adjust Order
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                className="bg-amber-600 hover:bg-amber-700 text-white"
+                onClick={() => executeCheckout(shortageWarning.salePayload)}
+              >
+                Proceed with Override
               </Button>
             </div>
           </div>
