@@ -19,10 +19,11 @@ import {
   X,
   RotateCcw,
   ChefHat,
-  CookingPot,
-  AlertTriangle
+  AlertTriangle,
+  Download
 } from 'lucide-react';
-import { printOrderReceipt, formatWhatsAppReceipt } from '../utils/receiptPrinter';
+import { printOrderReceipt } from '../utils/receiptPrinter';
+import { shareBillAsPNGViaWhatsApp, downloadBillPNG } from '../utils/billImageUtils';
 
 export const POS = () => {
   const {
@@ -41,6 +42,7 @@ export const POS = () => {
     setPaymentMethod,
     recordPOSSale,
     checkCartStockAvailability,
+    showToast,
     isLoading
   } = useApp();
 
@@ -140,8 +142,35 @@ export const POS = () => {
     }
   };
 
-  const getWhatsAppShareUrl = () => {
-    return formatWhatsAppReceipt(lastOrder, data?.settings);
+  const [isSharingPNG, setIsSharingPNG] = useState(false);
+  const [isDownloadingPNG, setIsDownloadingPNG] = useState(false);
+
+  const handleSharePNGWhatsApp = async () => {
+    if (!lastOrder) return;
+    setIsSharingPNG(true);
+    try {
+      const res = await shareBillAsPNGViaWhatsApp(lastOrder, data?.settings, 'printable-receipt');
+      if (res?.message) {
+        showToast(res.message, res.success ? 'success' : 'info');
+      }
+    } catch (err) {
+      showToast('Error generating bill image: ' + err.message, 'error');
+    } finally {
+      setIsSharingPNG(false);
+    }
+  };
+
+  const handleDownloadPNG = async () => {
+    if (!lastOrder) return;
+    setIsDownloadingPNG(true);
+    try {
+      const filename = await downloadBillPNG(lastOrder, data?.settings, 'printable-receipt');
+      showToast(`Bill image saved as ${filename}!`, 'success');
+    } catch (err) {
+      showToast('Error downloading image: ' + err.message, 'error');
+    } finally {
+      setIsDownloadingPNG(false);
+    }
   };
 
   const printReceipt = () => {
@@ -687,31 +716,50 @@ export const POS = () => {
             </div>
 
             {/* Action Buttons */}
-            <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
-              <Button
-                variant="outline"
-                size="sm"
-                icon={Printer}
-                onClick={printReceipt}
-              >
-                Print / Save PDF
-              </Button>
-              <a
-                href={getWhatsAppShareUrl()}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs"
-              >
-                <Share2 className="w-3.5 h-3.5" />
-                <span>WhatsApp Share</span>
-              </a>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => setReceiptModalOpen(false)}
-              >
-                Next Order
-              </Button>
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  icon={Printer}
+                  onClick={printReceipt}
+                  className="text-xs"
+                >
+                  Print
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  icon={Download}
+                  onClick={handleDownloadPNG}
+                  isLoading={isDownloadingPNG}
+                  className="text-xs"
+                  title="Download receipt as PNG image"
+                >
+                  Save PNG
+                </Button>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                <Button
+                  variant="primary"
+                  size="sm"
+                  icon={Share2}
+                  onClick={handleSharePNGWhatsApp}
+                  isLoading={isSharingPNG}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-md shadow-emerald-600/20"
+                >
+                  Share Bill (PNG) via WhatsApp
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setReceiptModalOpen(false)}
+                  className="text-xs"
+                >
+                  Done
+                </Button>
+              </div>
             </div>
           </div>
         </Modal>

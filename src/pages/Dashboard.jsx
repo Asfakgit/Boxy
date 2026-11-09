@@ -21,8 +21,6 @@ import {
   RefreshCw,
   Plus,
   ArrowRight,
-  Package,
-  Receipt,
   CheckCircle2,
   Calendar
 } from 'lucide-react';
@@ -245,54 +243,7 @@ export const Dashboard = () => {
         </div>
       </div>
 
-      {/* 4. Four Main Shortcuts (Clear & Large) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <button
-          onClick={() => navigate('/pos')}
-          className="p-4 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-200/80 dark:border-indigo-900/40 hover:border-indigo-500 hover:shadow-sm transition-all text-left group"
-        >
-          <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold mb-3 shadow-xs group-hover:scale-105 transition-transform">
-            <ShoppingBag className="w-4 h-4" />
-          </div>
-          <h4 className="font-extrabold text-sm text-slate-900 dark:text-white">POS Billing</h4>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Create sales & print receipts</p>
-        </button>
-
-        <button
-          onClick={() => navigate('/items')}
-          className="p-4 rounded-2xl bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200/80 dark:border-purple-900/40 hover:border-purple-500 hover:shadow-sm transition-all text-left group"
-        >
-          <div className="w-9 h-9 rounded-xl bg-purple-600 text-white flex items-center justify-center font-bold mb-3 shadow-xs group-hover:scale-105 transition-transform">
-            <Package className="w-4 h-4" />
-          </div>
-          <h4 className="font-extrabold text-sm text-slate-900 dark:text-white">Menu & Stock</h4>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Dishes, categories & items</p>
-        </button>
-
-        <button
-          onClick={() => navigate('/purchases')}
-          className="p-4 rounded-2xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-900/40 hover:border-amber-500 hover:shadow-sm transition-all text-left group"
-        >
-          <div className="w-9 h-9 rounded-xl bg-amber-600 text-white flex items-center justify-center font-bold mb-3 shadow-xs group-hover:scale-105 transition-transform">
-            <Truck className="w-4 h-4" />
-          </div>
-          <h4 className="font-extrabold text-sm text-slate-900 dark:text-white">Restock Kitchen</h4>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Buy raw materials & supplies</p>
-        </button>
-
-        <button
-          onClick={() => navigate('/orders')}
-          className="p-4 rounded-2xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/80 dark:border-emerald-900/40 hover:border-emerald-500 hover:shadow-sm transition-all text-left group"
-        >
-          <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold mb-3 shadow-xs group-hover:scale-105 transition-transform">
-            <Receipt className="w-4 h-4" />
-          </div>
-          <h4 className="font-extrabold text-sm text-slate-900 dark:text-white">Orders & Bills</h4>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">View & reprint past invoices</p>
-        </button>
-      </div>
-
-      {/* 5. Clean Weekly Sales Trend & Recent Orders */}
+      {/* 4. Clean Weekly Sales Trend & Recent Orders */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Weekly Sales Chart (7 Cols) */}
         <div className="lg:col-span-7">
@@ -309,11 +260,11 @@ export const Dashboard = () => {
                       <stop offset="95%" stopColor="#4f46e5" stopOpacity={0.0}/>
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.15} />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#262626" opacity={0.3} />
                   <XAxis dataKey="day" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
                   <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
                   <Tooltip
-                    contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '12px', fontSize: '12px', color: '#fff' }}
+                    contentStyle={{ backgroundColor: '#000000', borderColor: '#262626', borderRadius: '12px', fontSize: '12px', color: '#ffffff', boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}
                     formatter={(val) => [fmt(val), 'Sales']}
                   />
                   <Area

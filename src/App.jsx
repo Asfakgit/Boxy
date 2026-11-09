@@ -16,6 +16,8 @@ import { SupplierManagement } from './pages/SupplierManagement';
 import { ReportingAnalytics } from './pages/ReportingAnalytics';
 import { SettingsConfiguration } from './pages/SettingsConfiguration';
 import { ItemManagement } from './pages/ItemManagement';
+import { PartnerManagement } from './pages/PartnerManagement';
+import { LabourManagement } from './pages/LabourManagement';
 
 const AppContent = () => {
   const { isAuthenticated } = useAuth();
@@ -35,6 +37,8 @@ const AppContent = () => {
         <Route path="/purchases" element={<PurchaseManagement />} />
         <Route path="/customers" element={<CustomerManagement />} />
         <Route path="/suppliers" element={<SupplierManagement />} />
+        <Route path="/partners" element={<PartnerManagement />} />
+        <Route path="/labour" element={<LabourManagement />} />
         <Route path="/reports" element={<ReportingAnalytics />} />
         <Route path="/settings" element={<SettingsConfiguration />} />
         <Route path="*" element={<Navigate to="/" replace />} />

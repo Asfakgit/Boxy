@@ -1,10 +1,20 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Table } from '../components/ui/Table';
 import { Badge } from '../components/ui/Badge';
-import { exportToCSV } from '../utils/exportUtils';
+import {
+  exportDailyReportPDF,
+  exportMonthlyReportPDF,
+  exportCustomReportPDF,
+  exportKitchenReportPDF
+} from '../utils/pdfExportUtils';
+import { BalanceSheetReport } from '../components/reports/BalanceSheetReport';
+import { CustomerLedgerReport } from '../components/reports/CustomerLedgerReport';
+import { SupplierLedgerReport } from '../components/reports/SupplierLedgerReport';
+import { calculateBusinessFinancials, calculatePartnerSummary } from '../utils/partnerLabourUtils';
 import {
   Calendar,
   CalendarDays,
@@ -27,7 +37,11 @@ import {
   PieChart,
   ChefHat,
   CookingPot,
-  AlertTriangle
+  AlertTriangle,
+  Scale,
+  Users,
+  Building2,
+  HeartHandshake
 } from 'lucide-react';
 import { convertQuantity, calculateIngredientCost } from '../utils/unitConverter';
 
@@ -51,7 +65,27 @@ const normalizeDate = (raw) => {
 
 export const ReportingAnalytics = () => {
   const { data } = useApp();
-  const [activeTab, setActiveTab] = useState('daily'); // 'daily', 'monthly', 'custom'
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState(tabParam || 'daily');
+  const initialCustomerId = searchParams.get('customerId');
+  const initialSupplierId = searchParams.get('supplierId');
+
+  useEffect(() => {
+    if (tabParam && tabParam !== activeTab) {
+      setActiveTab(tabParam);
+    }
+  }, [tabParam]);
+
+  const handleTabChange = (newTab) => {
+    setActiveTab(newTab);
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      next.set('tab', newTab);
+      return next;
+    });
+  };
 
   const currency = data?.settings?.currencySymbol || '₹';
   const appName = data?.settings?.appName || 'Boxy';
@@ -243,6 +277,29 @@ export const ReportingAnalytics = () => {
       paymentMethods[key].count += 1;
     });
 
+    const startDate = `${selectedMonth}-01`;
+    const endDate = `${selectedMonth}-${String(daysInMonth).padStart(2, '0')}`;
+
+    const financials = calculateBusinessFinancials({
+      sales,
+      purchases,
+      expenses,
+      salaryPayments: data?.salaryPayments || [],
+      filterStartDate: startDate,
+      filterEndDate: endDate
+    });
+
+    const partnerSummary = calculatePartnerSummary({
+      partners: data?.partners || [],
+      withdrawals: data?.partnerWithdrawals || [],
+      sales,
+      purchases,
+      expenses,
+      salaryPayments: data?.salaryPayments || [],
+      filterStartDate: startDate,
+      filterEndDate: endDate
+    });
+
     return {
       monthSales,
       monthPurchases,
@@ -256,9 +313,11 @@ export const ReportingAnalytics = () => {
       profitMargin,
       dayLedger,
       topProducts,
-      paymentMethods
+      paymentMethods,
+      financials,
+      partnerSummary
     };
-  }, [sales, purchases, expenses, selectedMonth]);
+  }, [sales, purchases, expenses, selectedMonth, data?.salaryPayments, data?.partners, data?.partnerWithdrawals]);
 
   // ==========================================
   // 3. CUSTOMIZED REPORT STATE & CALCULATIONS
@@ -369,6 +428,26 @@ export const ReportingAnalytics = () => {
     const netProfit = totalSales - totalPurchases - totalExpenses;
     const ordersCount = filteredSales.length;
 
+    const financials = calculateBusinessFinancials({
+      sales: filteredSales,
+      purchases: filteredPurchases,
+      expenses: filteredExpenses,
+      salaryPayments: data?.salaryPayments || [],
+      filterStartDate: customStartDate,
+      filterEndDate: customEndDate
+    });
+
+    const partnerSummary = calculatePartnerSummary({
+      partners: data?.partners || [],
+      withdrawals: data?.partnerWithdrawals || [],
+      sales: filteredSales,
+      purchases: filteredPurchases,
+      expenses: filteredExpenses,
+      salaryPayments: data?.salaryPayments || [],
+      filterStartDate: customStartDate,
+      filterEndDate: customEndDate
+    });
+
     return {
       filteredSales,
       filteredPurchases,
@@ -377,9 +456,11 @@ export const ReportingAnalytics = () => {
       totalPurchases,
       totalExpenses,
       netProfit,
-      ordersCount
+      ordersCount,
+      financials,
+      partnerSummary
     };
-  }, [sales, purchases, expenses, customStartDate, customEndDate, customCategoryFilter, customPaymentFilter, customSearchTerm]);
+  }, [sales, purchases, expenses, customStartDate, customEndDate, customCategoryFilter, customPaymentFilter, customSearchTerm, data?.salaryPayments, data?.partners, data?.partnerWithdrawals]);
 
   // ==========================================
   // 4. KITCHEN RECIPES & CONSUMPTION REPORT
@@ -644,21 +725,14 @@ export const ReportingAnalytics = () => {
     }, 400);
   };
 
-  // 1. Export Daily CSV
-  const handleExportDailyCSV = () => {
-    const rows = dailyData.daySales.map(s => ({
-      'Invoice #': s.invoiceNumber,
-      'Date': s.date ? new Date(s.date).toLocaleDateString('en-GB') : selectedDay,
-      'Time': s.date ? new Date(s.date).toLocaleTimeString() : '',
-      'Customer': s.customerName || 'Walk-in Customer',
-      'Items Summary': s.itemsSummary || (s.items || []).map(i => `${i.quantity}x ${i.productName || i.name}`).join(', '),
-      'Payment Method': s.paymentMethod || 'Cash',
-      'Subtotal': s.subtotal || s.totalAmount,
-      'Tax (GST)': s.taxAmount || 0,
-      'Total Amount': s.totalAmount
-    }));
-
-    exportToCSV(rows, `Boxy_Daily_Report_${selectedDay}`);
+  // 1. Export Daily PDF
+  const handleExportDailyPDF = () => {
+    exportDailyReportPDF({
+      dailyData,
+      selectedDay,
+      settings: data?.settings || {},
+      currency
+    });
   };
 
   // 1. Print Daily Report
@@ -746,19 +820,14 @@ export const ReportingAnalytics = () => {
     triggerPrintWindow('Daily Sales & Performance Report', `Date: ${selectedDay}`, metrics, tablesHtml);
   };
 
-  // 2. Export Monthly CSV
-  const handleExportMonthlyCSV = () => {
-    const rows = monthlyData.dayLedger.map(d => ({
-      'Date': d.dateStr,
-      'Day': d.dayNum,
-      'Orders': d.ordersCount,
-      'Sales Revenue': d.sales,
-      'Restock Purchases': d.purchases,
-      'Operating Expenses': d.expenses,
-      'Net Daily Profit': d.netProfit
-    }));
-
-    exportToCSV(rows, `Boxy_Monthly_Report_${selectedMonth}`);
+  // 2. Export Monthly PDF
+  const handleExportMonthlyPDF = () => {
+    exportMonthlyReportPDF({
+      monthlyData,
+      selectedMonth,
+      settings: data?.settings || {},
+      currency
+    });
   };
 
   // 2. Print Monthly Report
@@ -824,44 +893,16 @@ export const ReportingAnalytics = () => {
     triggerPrintWindow('Monthly Financial Statement', `Month: ${monthName}`, metrics, tablesHtml);
   };
 
-  // 3. Export Custom CSV
-  const handleExportCustomCSV = () => {
-    let rows = [];
-    if (customCategoryFilter === 'purchases') {
-      rows = customData.filteredPurchases.map(p => ({
-        'Purchase #': p.materialNumber || p.id,
-        'Date': p.date,
-        'Supplier': p.supplierName,
-        'Payment Status': p.paymentStatus,
-        'Payment Method': p.paymentMethod,
-        'Total Amount': p.totalAmount,
-        'Amount Paid': p.amountPaid,
-        'Notes': p.notes
-      }));
-    } else if (customCategoryFilter === 'expenses') {
-      rows = customData.filteredExpenses.map(e => ({
-        'ID': e.id,
-        'Date': e.date,
-        'Category': e.category,
-        'Amount': e.amount,
-        'Payment Method': e.paymentMethod,
-        'Description': e.description
-      }));
-    } else {
-      rows = customData.filteredSales.map(s => ({
-        'Invoice #': s.invoiceNumber,
-        'Date': s.date,
-        'Customer': s.customerName || 'Walk-in',
-        'Payment Method': s.paymentMethod,
-        'Items Summary': s.itemsSummary || (s.items || []).map(i => `${i.quantity}x ${i.productName || i.name}`).join(', '),
-        'Subtotal': s.subtotal || s.totalAmount,
-        'Discount': s.discount || 0,
-        'Tax': s.taxAmount || 0,
-        'Total Amount': s.totalAmount
-      }));
-    }
-
-    exportToCSV(rows, `Boxy_Custom_Report_${customStartDate || 'start'}_to_${customEndDate || 'end'}`);
+  // 3. Export Custom PDF
+  const handleExportCustomPDF = () => {
+    exportCustomReportPDF({
+      customData,
+      customCategoryFilter,
+      customStartDate,
+      customEndDate,
+      settings: data?.settings || {},
+      currency
+    });
   };
 
   // 3. Print Custom Report
@@ -907,68 +948,133 @@ export const ReportingAnalytics = () => {
     triggerPrintWindow('Custom Financial Audit Report', `Range: ${rangeLabel}`, metrics, tablesHtml);
   };
 
+  // Mobile Overview Quick Sums
+  const mobileReceivables = (data?.customers || []).reduce((sum, c) => sum + Math.max(0, Number(c.outstandingBalance || 0)), 0);
+  const mobilePayables = (data?.suppliers || []).reduce((sum, s) => sum + Math.max(0, Number(s.outstandingBalance || 0)), 0);
+
   return (
-    <div className="space-y-6 animate-fadeIn pb-12">
+    <div className="space-y-4 sm:space-y-6 animate-fadeIn pb-12">
+      {/* Mobile-Only Quick Glance Strip */}
+      <div className="grid grid-cols-2 gap-2 sm:hidden">
+        <button
+          onClick={() => handleTabChange('customer-ledger')}
+          className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 text-left shadow-2xs active:scale-95 transition-all"
+        >
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Receivables (Dues)</span>
+          <span className="text-base font-black text-rose-600 dark:text-rose-400 mt-0.5 block">{fmt(mobileReceivables)}</span>
+          <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold mt-1 flex items-center gap-0.5">
+            Customer Ledger <ChevronRight className="w-3 h-3" />
+          </span>
+        </button>
+
+        <button
+          onClick={() => handleTabChange('supplier-ledger')}
+          className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 text-left shadow-2xs active:scale-95 transition-all"
+        >
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Payables (Bills)</span>
+          <span className="text-base font-black text-amber-600 dark:text-amber-400 mt-0.5 block">{fmt(mobilePayables)}</span>
+          <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold mt-1 flex items-center gap-0.5">
+            Vendor Ledger <ChevronRight className="w-3 h-3" />
+          </span>
+        </button>
+      </div>
+
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
-            <PieChart className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+          <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+            <PieChart className="w-5 sm:w-6 h-5 sm:h-6 text-indigo-600 dark:text-indigo-400" />
             Financial & Sales Reports
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Daily day-end closing, monthly statements, and customized date range reports with print & Excel export
+            Daily day-end closing, balance sheets, and individual customer/vendor ledgers
           </p>
         </div>
 
         {/* Global Tab Switcher */}
-        <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 w-full sm:w-max">
+        <div className="flex overflow-x-auto no-scrollbar max-w-full bg-slate-100 dark:bg-slate-800 p-1 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 gap-1">
           <button
-            onClick={() => setActiveTab('daily')}
-            className={`flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+            onClick={() => handleTabChange('daily')}
+            className={`whitespace-nowrap px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
               activeTab === 'daily'
                 ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
-            <Calendar className="w-4 h-4" />
-            <span>Daily Report</span>
+            <Calendar className="w-3.5 h-3.5" />
+            <span>Daily</span>
           </button>
 
           <button
-            onClick={() => setActiveTab('monthly')}
-            className={`flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+            onClick={() => handleTabChange('monthly')}
+            className={`whitespace-nowrap px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
               activeTab === 'monthly'
                 ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
-            <CalendarDays className="w-4 h-4" />
-            <span>Monthly Report</span>
+            <CalendarDays className="w-3.5 h-3.5" />
+            <span>Monthly P&L</span>
           </button>
 
           <button
-            onClick={() => setActiveTab('custom')}
-            className={`flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+            onClick={() => handleTabChange('custom')}
+            className={`whitespace-nowrap px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
               activeTab === 'custom'
                 ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
-            <CalendarRange className="w-4 h-4" />
-            <span>Customized Report</span>
+            <CalendarRange className="w-3.5 h-3.5" />
+            <span>Custom Range</span>
           </button>
 
           <button
-            onClick={() => setActiveTab('kitchen')}
-            className={`flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+            onClick={() => handleTabChange('balance-sheet')}
+            className={`whitespace-nowrap px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+              activeTab === 'balance-sheet'
+                ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm ring-1 ring-indigo-500/20'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <Scale className="w-3.5 h-3.5 text-indigo-500" />
+            <span>Balance Sheet</span>
+          </button>
+
+          <button
+            onClick={() => handleTabChange('customer-ledger')}
+            className={`whitespace-nowrap px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+              activeTab === 'customer-ledger'
+                ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm ring-1 ring-indigo-500/20'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <Users className="w-3.5 h-3.5 text-indigo-500" />
+            <span>Customer Ledger</span>
+          </button>
+
+          <button
+            onClick={() => handleTabChange('supplier-ledger')}
+            className={`whitespace-nowrap px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+              activeTab === 'supplier-ledger'
+                ? 'bg-white dark:bg-slate-900 text-amber-600 dark:text-amber-400 shadow-sm ring-1 ring-amber-500/20'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <Building2 className="w-3.5 h-3.5 text-amber-500" />
+            <span>Supplier Ledger</span>
+          </button>
+
+          <button
+            onClick={() => handleTabChange('kitchen')}
+            className={`whitespace-nowrap px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
               activeTab === 'kitchen'
                 ? 'bg-white dark:bg-slate-900 text-rose-600 dark:text-rose-400 shadow-sm'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
-            <ChefHat className="w-4 h-4 text-rose-500" />
-            <span>Kitchen & Consumption</span>
+            <ChefHat className="w-3.5 h-3.5 text-rose-500" />
+            <span>Kitchen Analytics</span>
           </button>
         </div>
       </div>
@@ -1029,77 +1135,77 @@ export const ReportingAnalytics = () => {
                 variant="primary"
                 size="sm"
                 icon={Download}
-                onClick={handleExportDailyCSV}
+                onClick={handleExportDailyPDF}
                 className="text-xs bg-indigo-600 hover:bg-indigo-700"
               >
-                Export CSV
+                Export PDF
               </Button>
             </div>
           </div>
 
           {/* Daily KPI Summary Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             {/* Sales Revenue */}
             <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Today's Sales</span>
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Today's Sales</span>
                 <span className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400">
                   <TrendingUp className="w-4 h-4" />
                 </span>
               </div>
-              <p className="text-2xl font-black text-slate-900 dark:text-white mt-1">
+              <p className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-1">
                 {fmt(dailyData.totalSales)}
               </p>
               <p className="text-xs text-slate-500 mt-0.5">
-                {dailyData.ordersCount} completed orders
+                {dailyData.ordersCount} orders billed
               </p>
             </div>
 
             {/* Restock & Expenses */}
             <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Costs & Restock</span>
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Costs & Restock</span>
                 <span className="p-2 rounded-xl bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400">
                   <TrendingDown className="w-4 h-4" />
                 </span>
               </div>
-              <p className="text-2xl font-black text-slate-900 dark:text-white mt-1">
+              <p className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-1">
                 {fmt(dailyData.totalPurchases + dailyData.totalExpenses)}
               </p>
               <p className="text-xs text-slate-500 mt-0.5">
-                Purchases: {fmt(dailyData.totalPurchases)} • Expenses: {fmt(dailyData.totalExpenses)}
+                Purchases & expenses
               </p>
             </div>
 
             {/* Net Daily Profit */}
             <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Net Profit</span>
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Net Profit</span>
                 <span className={`p-2 rounded-xl ${dailyData.netProfit >= 0 ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400' : 'bg-rose-50 text-rose-600 dark:bg-rose-950/50 dark:text-rose-400'}`}>
                   <DollarSign className="w-4 h-4" />
                 </span>
               </div>
-              <p className={`text-2xl font-black mt-1 ${dailyData.netProfit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600'}`}>
+              <p className={`text-xl sm:text-2xl font-black mt-1 ${dailyData.netProfit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600'}`}>
                 {fmt(dailyData.netProfit)}
               </p>
               <p className="text-xs text-slate-500 mt-0.5">
-                Revenue minus restock and expenses
+                {dailyData.totalSales > 0 ? Math.round((dailyData.netProfit / dailyData.totalSales) * 100) : 0}% net margin
               </p>
             </div>
 
             {/* Average Order Value */}
             <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Avg Order Value</span>
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Avg Order Value</span>
                 <span className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400">
                   <ShoppingBag className="w-4 h-4" />
                 </span>
               </div>
-              <p className="text-2xl font-black text-slate-900 dark:text-white mt-1">
+              <p className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-1">
                 {fmt(dailyData.avgOrderValue)}
               </p>
               <p className="text-xs text-slate-500 mt-0.5">
-                GST collected: {fmt(dailyData.totalTax)}
+                GST: {fmt(dailyData.totalTax)}
               </p>
             </div>
           </div>
@@ -1285,80 +1391,143 @@ export const ReportingAnalytics = () => {
                 variant="primary"
                 size="sm"
                 icon={Download}
-                onClick={handleExportMonthlyCSV}
+                onClick={handleExportMonthlyPDF}
                 className="text-xs bg-indigo-600 hover:bg-indigo-700"
               >
-                Export Monthly CSV
+                Export Monthly PDF
               </Button>
             </div>
           </div>
 
           {/* Monthly KPI Summary Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             {/* Monthly Sales */}
             <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Monthly Sales</span>
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Monthly Sales</span>
                 <span className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400">
                   <TrendingUp className="w-4 h-4" />
                 </span>
               </div>
-              <p className="text-2xl font-black text-slate-900 dark:text-white mt-1">
+              <p className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-1">
                 {fmt(monthlyData.totalSales)}
               </p>
               <p className="text-xs text-slate-500 mt-0.5">
-                {monthlyData.ordersCount} total orders billed
+                {monthlyData.ordersCount} orders billed
               </p>
             </div>
 
             {/* Monthly Purchases */}
             <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Restock Purchases</span>
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Restock Purchases</span>
                 <span className="p-2 rounded-xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400">
                   <Package className="w-4 h-4" />
                 </span>
               </div>
-              <p className="text-2xl font-black text-slate-900 dark:text-white mt-1">
+              <p className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-1">
                 {fmt(monthlyData.totalPurchases)}
               </p>
               <p className="text-xs text-slate-500 mt-0.5">
-                Raw material ingredient restocking
+                Ingredient restocks
               </p>
             </div>
 
             {/* Operating Expenses */}
             <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Expenses & Overheads</span>
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Expenses & Overheads</span>
                 <span className="p-2 rounded-xl bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400">
                   <TrendingDown className="w-4 h-4" />
                 </span>
               </div>
-              <p className="text-2xl font-black text-slate-900 dark:text-white mt-1">
+              <p className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-1">
                 {fmt(monthlyData.totalExpenses)}
               </p>
               <p className="text-xs text-slate-500 mt-0.5">
-                Kitchen utilities, gas & supplies
+                Utilities & supplies
               </p>
             </div>
 
             {/* Net Monthly Profit */}
             <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Net Monthly Profit</span>
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Net Monthly Profit</span>
                 <span className={`p-2 rounded-xl ${monthlyData.netProfit >= 0 ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400' : 'bg-rose-50 text-rose-600 dark:bg-rose-950/50 dark:text-rose-400'}`}>
                   <DollarSign className="w-4 h-4" />
                 </span>
               </div>
-              <p className={`text-2xl font-black mt-1 ${monthlyData.netProfit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600'}`}>
+              <p className={`text-xl sm:text-2xl font-black mt-1 ${monthlyData.netProfit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600'}`}>
                 {fmt(monthlyData.netProfit)}
               </p>
               <p className="text-xs text-slate-500 mt-0.5 font-bold">
-                Profit Margin: {Math.round(monthlyData.profitMargin)}%
+                Margin: {Math.round(monthlyData.profitMargin)}%
               </p>
             </div>
           </div>
+
+          {/* Partner Profit Allocation Breakdown */}
+          {monthlyData.partnerSummary?.partners?.length > 0 && (
+            <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-neutral-950 border border-slate-200/80 dark:border-neutral-800 shadow-xs space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-neutral-800 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-indigo-50 dark:bg-neutral-900 text-indigo-600 dark:text-indigo-400">
+                    <HeartHandshake className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white">
+                      Partner Profit Distribution ({selectedMonth})
+                    </h3>
+                    <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                      Distributable: <span className="font-bold text-slate-900 dark:text-white">{fmt(monthlyData.partnerSummary.distributableProfit)}</span> • Labour Salaries Deducted: <span className="font-bold text-rose-500">{fmt(monthlyData.financials.labourSalaries)}</span>
+                    </p>
+                  </div>
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate('/partners')}
+                  icon={HeartHandshake}
+                  className="text-xs shrink-0"
+                >
+                  Partner Dashboard
+                </Button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {monthlyData.partnerSummary.partners.map((p) => (
+                  <div
+                    key={p.id}
+                    className="p-3.5 rounded-xl bg-slate-50 dark:bg-black border border-slate-200/80 dark:border-neutral-800 flex flex-col justify-between"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-extrabold text-xs text-slate-900 dark:text-white">{p.name}</span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-indigo-50 dark:bg-neutral-900 text-indigo-600 dark:text-indigo-400">
+                        {p.percentage}% Share
+                      </span>
+                    </div>
+                    <div className="mt-3 space-y-1 text-xs">
+                      <div className="flex justify-between text-neutral-500 dark:text-neutral-400 text-[11px]">
+                        <span>Profit Share:</span>
+                        <span className="font-bold text-emerald-600 dark:text-emerald-400">{fmt(p.allocatedProfit)}</span>
+                      </div>
+                      <div className="flex justify-between text-neutral-500 dark:text-neutral-400 text-[11px]">
+                        <span>Drawings/Withdrawn:</span>
+                        <span className="font-bold text-rose-500">{fmt(p.totalWithdrawals)}</span>
+                      </div>
+                      <div className="pt-1.5 border-t border-slate-200/60 dark:border-neutral-800 flex justify-between font-black">
+                        <span className="text-slate-700 dark:text-neutral-300">Period Balance:</span>
+                        <span className={p.remainingBalance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500'}>
+                          {fmt(p.remainingBalance)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Day-by-Day Activity Ledger Table */}
           <Card
@@ -1572,49 +1741,112 @@ export const ReportingAnalytics = () => {
                   variant="primary"
                   size="sm"
                   icon={Download}
-                  onClick={handleExportCustomCSV}
+                  onClick={handleExportCustomPDF}
                   className="text-xs bg-indigo-600 hover:bg-indigo-700"
                 >
-                  Export CSV
+                  Export PDF
                 </Button>
               </div>
             </div>
           </div>
 
           {/* Custom Summary KPI Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Total Sales</span>
-              <p className="text-2xl font-black text-slate-900 dark:text-white mt-1">{fmt(customData.totalSales)}</p>
-              <p className="text-xs text-slate-500 mt-0.5">{customData.ordersCount} matching orders</p>
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total Sales</span>
+              <p className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-1">{fmt(customData.totalSales)}</p>
+              <p className="text-xs text-slate-500 mt-0.5">{customData.ordersCount} orders</p>
             </div>
 
             <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Total Purchases</span>
-              <p className="text-2xl font-black text-slate-900 dark:text-white mt-1">{fmt(customData.totalPurchases)}</p>
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total Purchases</span>
+              <p className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-1">{fmt(customData.totalPurchases)}</p>
               <p className="text-xs text-slate-500 mt-0.5">{customData.filteredPurchases.length} restock bills</p>
             </div>
 
             <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Total Expenses</span>
-              <p className="text-2xl font-black text-slate-900 dark:text-white mt-1">{fmt(customData.totalExpenses)}</p>
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total Expenses</span>
+              <p className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-1">{fmt(customData.totalExpenses)}</p>
               <p className="text-xs text-slate-500 mt-0.5">{customData.filteredExpenses.length} expense logs</p>
             </div>
 
             <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Net Profit</span>
-              <p className={`text-2xl font-black mt-1 ${customData.netProfit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600'}`}>
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Net Profit</span>
+              <p className={`text-xl sm:text-2xl font-black mt-1 ${customData.netProfit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600'}`}>
                 {fmt(customData.netProfit)}
               </p>
               <p className="text-xs text-slate-500 mt-0.5 font-bold">
-                Profit Margin: {customData.totalSales > 0 ? Math.round((customData.netProfit / customData.totalSales) * 100) : 0}%
+                Margin: {customData.totalSales > 0 ? Math.round((customData.netProfit / customData.totalSales) * 100) : 0}%
               </p>
             </div>
           </div>
 
+          {/* Partner Profit Allocation Breakdown (Custom Range) */}
+          {customCategoryFilter === 'all' && customData.partnerSummary?.partners?.length > 0 && (
+            <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-neutral-950 border border-slate-200/80 dark:border-neutral-800 shadow-xs space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-neutral-800 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-indigo-50 dark:bg-neutral-900 text-indigo-600 dark:text-indigo-400">
+                    <HeartHandshake className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white">
+                      Partner Profit Distribution (Filtered Range)
+                    </h3>
+                    <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                      Distributable: <span className="font-bold text-slate-900 dark:text-white">{fmt(customData.partnerSummary.distributableProfit)}</span> • Labour Salaries Deducted: <span className="font-bold text-rose-500">{fmt(customData.financials.labourSalaries)}</span>
+                    </p>
+                  </div>
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate('/partners')}
+                  icon={HeartHandshake}
+                  className="text-xs shrink-0"
+                >
+                  Partner Dashboard
+                </Button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {customData.partnerSummary.partners.map((p) => (
+                  <div
+                    key={p.id}
+                    className="p-3.5 rounded-xl bg-slate-50 dark:bg-black border border-slate-200/80 dark:border-neutral-800 flex flex-col justify-between"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-extrabold text-xs text-slate-900 dark:text-white">{p.name}</span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-indigo-50 dark:bg-neutral-900 text-indigo-600 dark:text-indigo-400">
+                        {p.percentage}% Share
+                      </span>
+                    </div>
+                    <div className="mt-3 space-y-1 text-xs">
+                      <div className="flex justify-between text-neutral-500 dark:text-neutral-400 text-[11px]">
+                        <span>Profit Share:</span>
+                        <span className="font-bold text-emerald-600 dark:text-emerald-400">{fmt(p.allocatedProfit)}</span>
+                      </div>
+                      <div className="flex justify-between text-neutral-500 dark:text-neutral-400 text-[11px]">
+                        <span>Drawings/Withdrawn:</span>
+                        <span className="font-bold text-rose-500">{fmt(p.totalWithdrawals)}</span>
+                      </div>
+                      <div className="pt-1.5 border-t border-slate-200/60 dark:border-neutral-800 flex justify-between font-black">
+                        <span className="text-slate-700 dark:text-neutral-300">Period Balance:</span>
+                        <span className={p.remainingBalance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500'}>
+                          {fmt(p.remainingBalance)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Filtered Data Table */}
           {customCategoryFilter === 'purchases' ? (
-            <Card title="Custom Purchases & Restock Report" subtitle="Filtered vendor bills">
+            <Card title="Purchases & Restock Ledger">
               <Table
                 columns={[
                   { header: 'Purchase #', accessor: 'materialNumber', render: (r) => <span className="font-bold text-indigo-600">{r.materialNumber || r.id}</span> },
@@ -1629,7 +1861,7 @@ export const ReportingAnalytics = () => {
               />
             </Card>
           ) : customCategoryFilter === 'expenses' ? (
-            <Card title="Custom Operating Expenses Report" subtitle="Filtered utility & overhead expenses">
+            <Card title="Operating Expenses Ledger">
               <Table
                 columns={[
                   { header: 'ID', accessor: 'id', render: (r) => <span className="font-mono text-xs">{r.id}</span> },
@@ -1644,7 +1876,7 @@ export const ReportingAnalytics = () => {
               />
             </Card>
           ) : (
-            <Card title="Custom Sales & Invoiced Orders Report" subtitle="Filtered customer orders">
+            <Card title="Sales & Orders Ledger">
               <Table
                 columns={[
                   { header: 'Invoice #', accessor: 'invoiceNumber', render: (r) => <span className="font-mono font-bold text-indigo-600">{r.invoiceNumber}</span> },
@@ -1725,70 +1957,28 @@ export const ReportingAnalytics = () => {
               ))}
             </div>
 
-            {/* Export CSV for active view */}
+            {/* Export PDF for active view */}
             <Button
               size="sm"
               variant="outline"
               icon={Download}
               onClick={() => {
-                let rows = [];
-                let filename = 'Kitchen_Report';
-                if (kitchenSubTab === 'stock') {
-                  filename = 'Kitchen_Raw_Materials_Stock';
-                  rows = kitchenData.stockReport.map(r => ({
-                    ID: r.id,
-                    Material_Name: r.name,
-                    Category: r.category,
-                    Current_Stock: r.currentStock,
-                    Unit: r.unit,
-                    Cost_Price: r.costPrice,
-                    Inventory_Valuation: r.valuation,
-                    Min_Alert_Level: r.minStock,
-                    Status: r.status
-                  }));
-                } else if (kitchenSubTab === 'product_consumption') {
-                  filename = 'Product_Wise_Ingredient_Consumption';
-                  rows = kitchenData.productConsumptionList.map(p => ({
-                    Product_Code: p.productCode,
-                    Product_Name: p.productName,
-                    Total_Portions_Sold: p.totalPortionsSold,
-                    Ingredients_Consumed: p.ingredientsList.map(i => `${i.totalQuantity} ${i.unit} ${i.rawMaterialName} (${fmt(i.totalCost)})`).join('; ')
-                  }));
-                } else if (kitchenSubTab === 'invoice_consumption') {
-                  filename = 'Invoice_Wise_Ingredient_Consumption';
-                  rows = kitchenData.invoiceConsumptionList.map(inv => ({
-                    Invoice_Number: inv.invoiceNumber,
-                    Date: inv.date,
-                    Customer: inv.customerName,
-                    Items: inv.itemsSummary,
-                    Ingredients_Deducted: inv.ingredients.map(i => `${i.quantity} ${i.unit} ${i.rawMaterialName}`).join('; '),
-                    Total_Ingredient_Cost: inv.totalIngredientCost
-                  }));
-                } else {
-                  filename = 'Recipe_Costing_And_Margins';
-                  rows = kitchenData.recipeCostingList.map(r => ({
-                    Product_Code: r.productCode,
-                    Product_Name: r.productName,
-                    Category: r.category,
-                    Selling_Price: r.sellingPrice,
-                    Recipe_Cost: r.recipeCost,
-                    Gross_Profit: r.grossProfit,
-                    Margin_Percent: `${r.marginPct}%`,
-                    Food_Cost_Percent: `${r.foodCostPct}%`,
-                    Status: r.hasRecipe ? 'Configured' : 'Missing Recipe'
-                  }));
-                }
-                exportToCSV(rows, `${filename}_${new Date().toISOString().split('T')[0]}`);
+                exportKitchenReportPDF({
+                  kitchenData,
+                  kitchenSubTab,
+                  settings: data?.settings || {},
+                  currency
+                });
               }}
               className="text-xs shrink-0 border-slate-200 dark:border-slate-700"
             >
-              Export CSV
+              Export PDF
             </Button>
           </div>
 
           {/* Sub-Tab 1: Raw Materials Stock & Alerts */}
           {kitchenSubTab === 'stock' && (
-            <Card title="Current Kitchen Raw Material Stock & Low-Stock Alerts" subtitle="Live tracking of ingredients and valuation">
+            <Card title="Raw Material Stock & Alerts">
               <Table
                 columns={[
                   { header: 'ID', accessor: 'id', render: (r) => <span className="font-mono text-xs">{r.id}</span> },
@@ -1820,7 +2010,7 @@ export const ReportingAnalytics = () => {
 
           {/* Sub-Tab 2: Product-Wise Ingredient Consumption */}
           {kitchenSubTab === 'product_consumption' && (
-            <Card title="Product-Wise Ingredient Consumption" subtitle="Aggregated raw materials consumed per dish based on completed POS orders">
+            <Card title="Dish-Wise Ingredient Consumption">
               <Table
                 columns={[
                   { header: 'Code', accessor: 'productCode', render: (r) => <span className="font-mono text-xs font-bold text-indigo-600">{r.productCode || '—'}</span> },
@@ -1860,7 +2050,7 @@ export const ReportingAnalytics = () => {
 
           {/* Sub-Tab 3: Invoice-Wise Consumption Audit */}
           {kitchenSubTab === 'invoice_consumption' && (
-            <Card title="Invoice-Wise Consumption Audit" subtitle="Detailed breakdown of ingredients deducted per POS checkout">
+            <Card title="Invoice Consumption Audit">
               <Table
                 columns={[
                   { header: 'Invoice #', accessor: 'invoiceNumber', render: (r) => <span className="font-mono font-bold text-indigo-600">{r.invoiceNumber}</span> },
@@ -1895,7 +2085,7 @@ export const ReportingAnalytics = () => {
 
           {/* Sub-Tab 4: Recipe Costs & Margins */}
           {kitchenSubTab === 'recipe_costs' && (
-            <Card title="Recipe Costing & Profit Margin Analysis" subtitle="Breakdown of raw ingredient preparation cost vs selling price for every menu item">
+            <Card title="Recipe Costing & Profit Margins">
               <Table
                 columns={[
                   { header: 'Code', accessor: 'productCode', render: (r) => <span className="font-mono text-xs">{r.productCode}</span> },
@@ -1937,6 +2127,33 @@ export const ReportingAnalytics = () => {
               />
             </Card>
           )}
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* 5. BALANCE SHEET VIEW                                     */}
+      {/* ========================================================= */}
+      {activeTab === 'balance-sheet' && (
+        <div className="space-y-6">
+          <BalanceSheetReport />
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* 6. CUSTOMER LEDGER VIEW                                   */}
+      {/* ========================================================= */}
+      {activeTab === 'customer-ledger' && (
+        <div className="space-y-6">
+          <CustomerLedgerReport initialCustomerId={initialCustomerId} />
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* 7. SUPPLIER LEDGER VIEW                                   */}
+      {/* ========================================================= */}
+      {activeTab === 'supplier-ledger' && (
+        <div className="space-y-6">
+          <SupplierLedgerReport initialSupplierId={initialSupplierId} />
         </div>
       )}
     </div>

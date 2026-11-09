@@ -1,84 +1,56 @@
-import Papa from 'papaparse';
+/**
+ * Export Utilities (PDF-Only)
+ * All legacy CSV generation and downloads have been replaced with PDF exports.
+ */
+import {
+  exportOrdersPDF,
+  exportTransactionsPDF,
+  exportDailyReportPDF,
+  exportMonthlyReportPDF,
+  exportCustomReportPDF,
+  exportKitchenReportPDF,
+  exportBalanceSheetPDF,
+  exportCustomerLedgerPDF,
+  exportSupplierLedgerPDF
+} from './pdfExportUtils';
 
-export const prepareSalesDataForCSV = (sales = []) => {
-  return sales.map(s => {
-    const itemsSummary = s.itemsSummary || (Array.isArray(s.items) && s.items.length > 0 
-      ? s.items.map(i => `${i.quantity}x ${i.productName || i.name}`).join(', ') 
-      : 'General POS Sale');
-
-    return {
-      'Invoice #': s.invoiceNumber || '',
-      'Date': s.date ? new Date(s.date).toLocaleDateString('en-GB') : '',
-      'Time': s.date ? new Date(s.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
-      'Customer': s.customerName || 'Walk-in Customer',
-      'Items Ordered': itemsSummary,
-      'Subtotal': Number(s.subtotal || s.totalAmount || 0).toFixed(2),
-      'Discount': Number(s.discount || 0).toFixed(2),
-      'Tax (GST)': Number(s.taxAmount || 0).toFixed(2),
-      'Total Amount': Number(s.totalAmount || 0).toFixed(2),
-      'Payment Method': s.paymentMethod || 'Cash',
-      'Status': s.status || 'Completed'
-    };
-  });
+export {
+  exportOrdersPDF,
+  exportTransactionsPDF,
+  exportDailyReportPDF,
+  exportMonthlyReportPDF,
+  exportCustomReportPDF,
+  exportKitchenReportPDF,
+  exportBalanceSheetPDF,
+  exportCustomerLedgerPDF,
+  exportSupplierLedgerPDF
 };
 
-export const prepareTransactionData = (transactions = []) => {
-  return transactions.map(tx => ({
-    'Date': tx.date ? new Date(tx.date).toLocaleDateString('en-GB') : '',
-    'Time': tx.date ? new Date(tx.date).toLocaleTimeString() : '',
-    'Type': tx.type ? (tx.type.charAt(0).toUpperCase() + tx.type.slice(1)) : '',
-    'Item': tx.item || '',
-    'Category': tx.category || 'Uncategorized',
-    'Quantity': tx.quantity || 0,
-    'Unit Price': tx.unitPrice || 0,
-    'Total Amount': tx.amount || 0,
-    'Customer/Supplier': tx.customer || tx.supplier || '',
-    'Note': tx.note || '',
-  }));
-};
-
-export const prepareTransactionDataForExport = prepareTransactionData;
-
-export const prepareSummaryData = (metrics = {}) => {
-  return [
-    ['Metric', 'Value'],
-    ['Total Sales', metrics.sales || 0],
-    ['Total Purchases', metrics.purchases || 0],
-    ['Total Expenses', metrics.expenses || 0],
-    ['Net Profit', metrics.profit || 0],
-    ['Total Transactions', metrics.count || 0],
-    ['Sales Count', metrics.salesCount || 0],
-    ['Purchases Count', metrics.purchasesCount || 0],
-    ['Expenses Count', metrics.expensesCount || 0],
-  ];
-};
-
-export const exportToCSV = (data, filename = 'boxy-export') => {
-  if (!data || (Array.isArray(data) && data.length === 0)) {
-    alert('No data to export!');
-    return;
+/**
+ * Backward compatibility wrapper:
+ * If any legacy caller invokes exportToCSV or exportTransactionsToCSV,
+ * route directly to PDF export rather than CSV.
+ */
+export const exportToCSV = (data, filename = 'boxy-report') => {
+  console.warn('[PDF Migration] CSV exports are deprecated and replaced with PDF format.');
+  if (Array.isArray(data) && data.length > 0) {
+    // If transactions array
+    if (data[0].Transaction_ID || data[0].flow || data[0].referenceId) {
+      exportTransactionsPDF({ transactions: data, filename });
+      return;
+    }
+    // If orders array
+    if (data[0].invoiceNumber || data[0]['Invoice #']) {
+      exportOrdersPDF({ orders: data, filename });
+      return;
+    }
   }
-
-  const csv = Papa.unparse(data);
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const link = document.createElement('a');
-  const url = URL.createObjectURL(blob);
-  link.setAttribute('href', url);
-  
-  const cleanFilename = filename.endsWith('.csv') ? filename : `${filename}.csv`;
-  link.setAttribute('download', cleanFilename);
-  
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
 };
 
 export const exportTransactionsToCSV = (transactions, filename = 'boxy-transactions') => {
-  const data = prepareTransactionData(transactions);
-  exportToCSV(data, `${filename}-${new Date().toISOString().split('T')[0]}`);
+  exportTransactionsPDF({ transactions, filename });
 };
 
-export const exportSummaryToCSV = (metrics, filename = 'boxy-summary') => {
-  const data = prepareSummaryData(metrics);
-  exportToCSV(data, `${filename}-${new Date().toISOString().split('T')[0]}`);
+export const exportSummaryToCSV = () => {
+  console.warn('[PDF Migration] CSV summary is deprecated. Use exportDailyReportPDF or exportMonthlyReportPDF instead.');
 };

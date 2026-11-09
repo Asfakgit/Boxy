@@ -26,7 +26,9 @@ import {
   RefreshCw,
   LogOut,
   PanelLeft,
-  PanelLeftClose
+  PanelLeftClose,
+  HeartHandshake,
+  HardHat
 } from 'lucide-react';
 
 const PAGE_TITLES = {
@@ -38,6 +40,8 @@ const PAGE_TITLES = {
   '/items': 'Stock & Inventory Management',
   '/customers': 'Customers Directory',
   '/suppliers': 'Suppliers Directory',
+  '/partners': 'Partner Management',
+  '/labour': 'Labour & Staff',
   '/reports': 'Financial Reports',
   '/settings': 'Settings'
 };
@@ -60,6 +64,13 @@ const NAVIGATION_SECTIONS = [
     ]
   },
   {
+    title: 'Partners & Staff',
+    items: [
+      { name: 'Partners', path: '/partners', icon: HeartHandshake },
+      { name: 'Labour & Staff', path: '/labour', icon: HardHat },
+    ]
+  },
+  {
     title: 'Directory & Admin',
     items: [
       { name: 'Customers', path: '/customers', icon: Users },
@@ -79,6 +90,8 @@ const PAGE_ICONS = {
   '/items': Package,
   '/customers': Users,
   '/suppliers': Building2,
+  '/partners': HeartHandshake,
+  '/labour': HardHat,
   '/reports': FileSpreadsheet,
   '/settings': SettingsIcon
 };
@@ -112,15 +125,15 @@ export const Layout = ({ children }) => {
   const pageTitle = PAGE_TITLES[location.pathname] || 'Boxy Cloud Kitchen';
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-slate-50 dark:bg-slate-950 font-sans text-slate-800 dark:text-slate-100 select-none">
+    <div className="flex h-screen w-screen overflow-hidden bg-slate-50 dark:bg-black font-sans text-slate-800 dark:text-neutral-100 select-none">
       {/* Desktop / Tablet Sidebar */}
       <aside 
-        className={`hidden md:flex flex-col border-r border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-900/90 backdrop-blur-md z-30 flex-shrink-0 transition-all duration-200 ${
+        className={`hidden md:flex flex-col border-r border-slate-200/80 dark:border-neutral-800/80 bg-white dark:bg-neutral-950 backdrop-blur-md z-30 flex-shrink-0 transition-all duration-200 ${
           sidebarCollapsed ? 'w-20' : 'w-60 lg:w-64'
         }`}
       >
         {/* Brand Header */}
-        <div className={`flex items-center border-b border-slate-100 dark:border-slate-800/80 transition-all ${
+        <div className={`flex items-center border-b border-slate-100 dark:border-neutral-800/80 transition-all ${
           sidebarCollapsed ? 'justify-center p-3.5' : 'justify-between px-5 py-4'
         }`}>
           <div className="flex items-center gap-3 min-w-0">
@@ -284,13 +297,13 @@ export const Layout = ({ children }) => {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Top Header Bar */}
-        <header className="h-16 border-b border-slate-200/80 dark:border-slate-800/80 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md z-20 flex items-center justify-between px-3 sm:px-4 md:px-6 flex-shrink-0">
+        <header className="h-16 border-b border-slate-200/80 dark:border-neutral-800/80 bg-white/80 dark:bg-black/90 backdrop-blur-md z-20 flex items-center justify-between px-3 sm:px-4 md:px-6 flex-shrink-0">
           {/* Left: Mobile Menu Button, Sidebar Toggle & Title */}
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             {/* Mobile Drawer Trigger */}
             <button
               onClick={() => setMobileMenuOpen(true)}
-              className="md:hidden p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
+              className="md:hidden p-2 text-slate-600 dark:text-neutral-300 hover:bg-slate-100 dark:hover:bg-neutral-900 rounded-xl transition-colors"
               title="Open Navigation Menu"
             >
               <MenuIcon className="w-5 h-5" />
@@ -299,14 +312,14 @@ export const Layout = ({ children }) => {
             {/* Desktop / Tablet Sidebar Collapse Trigger */}
             <button
               onClick={toggleSidebar}
-              className="hidden md:flex p-2 text-slate-500 hover:text-slate-800 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
+              className="hidden md:flex p-2 text-slate-500 hover:text-slate-800 dark:hover:text-neutral-100 hover:bg-slate-100 dark:hover:bg-neutral-900 rounded-xl transition-colors"
               title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
               {sidebarCollapsed ? <PanelLeft className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
             </button>
 
             <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-slate-200/60 dark:border-slate-700/60 shrink-0">
+              <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-neutral-900 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-slate-200/60 dark:border-neutral-800 shrink-0">
                 <PageIcon className="w-4 h-4" strokeWidth={1.8} />
               </div>
               <h2 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-white tracking-tight truncate max-w-[140px] sm:max-w-xs md:max-w-md">
@@ -317,21 +330,21 @@ export const Layout = ({ children }) => {
 
           {/* Right Header Actions */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-            {/* Quick POS Button */}
+            {/* Quick POS Button (Desktop & Tablet) */}
             {location.pathname !== '/pos' && (
               <button
                 onClick={() => navigate('/pos')}
-                className="inline-flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white font-extrabold text-xs shadow-sm shadow-indigo-600/20 active:scale-95 transition-all"
+                className="hidden sm:inline-flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white font-extrabold text-xs shadow-sm shadow-indigo-600/20 active:scale-95 transition-all"
               >
                 <ShoppingBag className="w-3.5 h-3.5" strokeWidth={2} />
-                <span className="hidden xs:inline">POS Sale</span>
+                <span>POS Sale</span>
               </button>
             )}
 
             {/* Theme Toggle Button */}
             <button
               onClick={toggleTheme}
-              className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border border-slate-200/60 dark:border-slate-700/60 transition-colors"
+              className="p-2 rounded-xl bg-slate-100 dark:bg-neutral-900 text-slate-600 dark:text-neutral-300 hover:text-slate-900 dark:hover:text-white border border-slate-200/60 dark:border-neutral-800 transition-colors"
               title="Toggle Light/Dark Theme"
             >
               {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" strokeWidth={2} /> : <Moon className="w-4 h-4 text-indigo-600" strokeWidth={2} />}
@@ -340,14 +353,14 @@ export const Layout = ({ children }) => {
         </header>
 
         {/* Page Content Viewport */}
-        <main className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 lg:p-8 bg-slate-50 dark:bg-slate-950 pb-24 md:pb-8">
+        <main className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 lg:p-8 bg-slate-50 dark:bg-black pb-24 md:pb-8">
           <div className="max-w-7xl mx-auto space-y-6">
             {children}
           </div>
         </main>
 
         {/* Mobile Bottom Navigation Bar */}
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white/95 dark:bg-slate-900/95 backdrop-blur-lg border-t border-slate-200/80 dark:border-slate-800/80 z-40 flex items-center justify-around px-2 shadow-lg">
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white/95 dark:bg-black/95 backdrop-blur-lg border-t border-slate-200/80 dark:border-neutral-800/80 z-40 flex items-center justify-around px-2 shadow-lg">
           {[
             { name: 'POS', path: '/pos', icon: ShoppingBag },
             { name: 'Dashboard', path: '/', icon: LayoutDashboard },
@@ -383,9 +396,9 @@ export const Layout = ({ children }) => {
       {/* Mobile Navigation Drawer */}
       {mobileMenuOpen && (
         <div className="md:hidden fixed inset-0 z-50 flex animate-fadeIn">
-          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)} />
-          <div className="relative w-80 max-w-[85vw] bg-white dark:bg-slate-900 h-full shadow-2xl flex flex-col z-10 animate-slideRight">
-            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 dark:border-slate-800">
+          <div className="fixed inset-0 bg-black/75 backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)} />
+          <div className="relative w-80 max-w-[85vw] bg-white dark:bg-black h-full shadow-2xl flex flex-col z-10 border-r border-slate-200/80 dark:border-neutral-800 animate-slideRight">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 dark:border-neutral-800">
               <div className="flex items-center gap-3">
                 <img
                   src={logoSrc}
@@ -431,10 +444,10 @@ export const Layout = ({ children }) => {
               ))}
             </div>
 
-            <div className="p-4 border-t border-slate-100 dark:border-slate-800 space-y-2">
-              <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60">
+            <div className="p-4 border-t border-slate-100 dark:border-neutral-800 space-y-2">
+              <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-neutral-900 border border-slate-200/60 dark:border-neutral-800">
                 <div className="flex items-center gap-2 min-w-0">
-                  <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold text-xs uppercase shrink-0">
+                  <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-neutral-800 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold text-xs uppercase shrink-0">
                     {currentUser?.username?.[0] || 'U'}
                   </div>
                   <div className="min-w-0">
@@ -468,7 +481,7 @@ export const Layout = ({ children }) => {
 
               <button
                 onClick={() => { setMobileMenuOpen(false); navigate('/settings'); }}
-                className="w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold text-xs"
+                className="w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-slate-100 dark:bg-neutral-900 text-slate-700 dark:text-slate-200 font-bold text-xs"
               >
                 <span>Settings</span>
               </button>

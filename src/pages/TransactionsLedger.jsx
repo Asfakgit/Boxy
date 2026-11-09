@@ -1,21 +1,23 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Table } from '../components/ui/Table';
 import { Modal } from '../components/ui/Modal';
-import { exportToCSV } from '../utils/exportUtils';
+import { exportTransactionsPDF } from '../utils/pdfExportUtils';
 import {
   ArrowDownLeft,
   ArrowUpRight,
   Download,
   DollarSign,
   Plus,
-  RefreshCw
+  Scale
 } from 'lucide-react';
 
 export const TransactionsLedger = () => {
-  const { data, recordExpenseEntry, refreshData, isSyncing } = useApp();
+  const navigate = useNavigate();
+  const { data, recordExpenseEntry } = useApp();
   const [filterFlow, setFilterFlow] = useState('ALL'); // 'ALL', 'IN', 'OUT'
   const [filterType, setFilterType] = useState('ALL');
   const [expenseModalOpen, setExpenseModalOpen] = useState(false);
@@ -43,21 +45,14 @@ export const TransactionsLedger = () => {
   const totalOut = transactions.filter(t => t.flow === 'OUT').reduce((sum, t) => sum + Number(t.amount || 0), 0);
   const netCashFlow = totalIn - totalOut;
 
-  const handleExportCSV = () => {
-    const rows = filtered.map(t => ({
-      Transaction_ID: t.id,
-      Date: t.date,
-      Flow: t.flow,
-      Type: t.type,
-      Reference: t.referenceId,
-      Party: t.partyName,
-      Category: t.category,
-      Payment_Method: t.paymentMethod,
-      Amount: t.amount,
-      Status: t.status,
-      Notes: t.notes
-    }));
-    exportToCSV(rows, `Boxy_Transactions_${new Date().toISOString().split('T')[0]}`);
+  const handleExportPDF = () => {
+    exportTransactionsPDF({
+      transactions: filtered,
+      filterFlow,
+      filterType,
+      settings: data?.settings || {},
+      currency
+    });
   };
 
   const handleSaveExpense = async (e) => {
@@ -155,31 +150,33 @@ export const TransactionsLedger = () => {
             Real-time cash flow log synced directly to your Google Sheet's <strong>Transactions</strong> tab
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Button
-            onClick={() => refreshData()}
+            onClick={() => navigate('/reports?tab=balance-sheet')}
             variant="outline"
             size="sm"
-            icon={RefreshCw}
-            isLoading={isSyncing}
+            icon={Scale}
+            className="text-xs text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800"
           >
-            Sync Now
+            Balance Sheet
           </Button>
           <Button
             onClick={() => setExpenseModalOpen(true)}
             variant="secondary"
             size="sm"
             icon={Plus}
+            className="text-xs"
           >
             Record Expense
           </Button>
           <Button
-            onClick={handleExportCSV}
-            variant="success"
+            onClick={handleExportPDF}
+            variant="primary"
             size="sm"
             icon={Download}
+            className="text-xs"
           >
-            Export CSV
+            Export PDF
           </Button>
         </div>
       </div>

@@ -8,10 +8,20 @@
 
 import { INITIAL_DATA } from './mockData';
 
-const STORAGE_KEY = 'boxy_cloud_kitchen_db_v2';
+const STORAGE_KEY = 'boxy_cloud_kitchen_db_v3';
 export const DEFAULT_SCRIPT_URL = import.meta.env.VITE_GOOGLE_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbzPPvwAW0ZCPrfXE5fC3ALeepJyF_KTPZNrltIldHt6HzBGQcVY9ErinAZgpCXiS2HR/exec';
 export const DEFAULT_SHEET_URL = import.meta.env.VITE_GOOGLE_SHEET_URL || 'https://docs.google.com/spreadsheets/d/19VZ70qy1rUHsBTfn1FSUyjqarB56VujZJR7UcJqZXb8/edit';
 export const DEFAULT_SHEET_ID = import.meta.env.VITE_GOOGLE_SHEET_ID || '19VZ70qy1rUHsBTfn1FSUyjqarB56VujZJR7UcJqZXb8';
+
+// Clean legacy caches to ensure 100% fresh slate
+try {
+  localStorage.removeItem('boxy_cloud_kitchen_db_v2');
+  localStorage.removeItem('boxy_cloud_kitchen_db_v1');
+  localStorage.removeItem('boxy_cloud_kitchen_db');
+  localStorage.removeItem('boxy_custom_categories');
+} catch (e) {
+  // Ignore in non-browser environments
+}
 
 export const getDatabase = () => {
   const saved = localStorage.getItem(STORAGE_KEY);
@@ -39,6 +49,21 @@ export const getDatabase = () => {
     }
     if (!Array.isArray(parsed.recipes)) {
       parsed.recipes = [];
+    }
+    if (!Array.isArray(parsed.partners) || parsed.partners.length === 0) {
+      parsed.partners = INITIAL_DATA.partners;
+    }
+    if (!Array.isArray(parsed.labourers) || parsed.labourers.length === 0) {
+      parsed.labourers = INITIAL_DATA.labourers;
+    }
+    if (!Array.isArray(parsed.partnerWithdrawals)) {
+      parsed.partnerWithdrawals = [];
+    }
+    if (!Array.isArray(parsed.salaryPayments)) {
+      parsed.salaryPayments = [];
+    }
+    if (!Array.isArray(parsed.attendance)) {
+      parsed.attendance = [];
     }
     return { ...INITIAL_DATA, ...parsed };
   } catch {
@@ -212,9 +237,28 @@ export const api = {
     apiRequest('recordSupplierPayment', { data: { supplierId, amount, paymentMethod } }),
   saveRow: (sheetName, data) => apiRequest('saveRow', { sheetName, data }),
   deleteRow: (sheetName, id) => apiRequest('deleteRow', { sheetName, id, data: { id, code: id } }),
+  savePartner: (data) => apiRequest('saveRow', { sheetName: 'Partners', data }),
+  deletePartner: (id) => apiRequest('deleteRow', { sheetName: 'Partners', id }),
+  saveLabourer: (data) => apiRequest('saveRow', { sheetName: 'Labourers', data }),
+  deleteLabourer: (id) => apiRequest('deleteRow', { sheetName: 'Labourers', id }),
+  recordPartnerWithdrawal: (data) => apiRequest('saveRow', { sheetName: 'Partner Withdrawals', data }),
+  deletePartnerWithdrawal: (id) => apiRequest('deleteRow', { sheetName: 'Partner Withdrawals', id }),
+  recordSalaryPayment: (data) => apiRequest('saveRow', { sheetName: 'Salary Payments', data }),
+  deleteSalaryPayment: (id) => apiRequest('deleteRow', { sheetName: 'Salary Payments', id }),
+  recordAttendance: (data) => apiRequest('saveRow', { sheetName: 'Attendance', data }),
   adjustStock: (data) => apiRequest('adjustStock', { data }),
   setupSheets: () => apiRequest('setupSheets', {}, 'GET'),
   cleanupDatabase: () => apiRequest('cleanupDatabase', {}, 'POST'),
+  clearAllData: async () => {
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_DATA));
+    try {
+      return await apiRequest('clearAllData', {}, 'POST');
+    } catch (err) {
+      console.warn('Backend clear all data:', err);
+      return { success: true };
+    }
+  },
   testConnection: (url) => testGoogleSheetsConnection(url),
   purgeAndRefetch: async () => {
     clearLocalCache();

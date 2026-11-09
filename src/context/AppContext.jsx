@@ -6,6 +6,11 @@ const AppContext = createContext();
 
 const getCollectionKey = (sheetName) => {
   const norm = String(sheetName || '').toLowerCase().replace(/[^a-z]/g, '');
+  if (norm.includes('partnerwithdrawal')) return 'partnerWithdrawals';
+  if (norm.includes('partner')) return 'partners';
+  if (norm.includes('salarypayment')) return 'salaryPayments';
+  if (norm.includes('labour') || norm.includes('worker') || norm.includes('employee')) return 'labourers';
+  if (norm.includes('attendance')) return 'attendance';
   if (norm.includes('product')) return 'products';
   if (norm.includes('raw') || norm.includes('material')) return 'rawMaterials';
   if (norm.includes('recipe')) return 'recipes';
@@ -98,7 +103,7 @@ export const AppProvider = ({ children }) => {
       if (cloudData && typeof cloudData === 'object') {
         setData(currentLocal => {
           const merged = { ...currentLocal, ...cloudData };
-          const keys = ['products', 'rawMaterials', 'sales', 'purchases', 'expenses', 'customers', 'suppliers', 'transactions', 'recipes'];
+          const keys = ['products', 'rawMaterials', 'sales', 'purchases', 'expenses', 'customers', 'suppliers', 'transactions', 'recipes', 'partners', 'labourers', 'partnerWithdrawals', 'salaryPayments', 'attendance'];
 
           keys.forEach(k => {
             const cloudList = Array.isArray(cloudData[k]) ? cloudData[k] : [];
@@ -969,6 +974,342 @@ export const AppProvider = ({ children }) => {
     }
   };
 
+  // =========================================================================
+  // PARTNER MANAGEMENT OPERATIONS
+  // =========================================================================
+
+  const savePartner = async (partnerData) => {
+    setIsLoading(true);
+    const item = { ...partnerData };
+    if (!item.id) item.id = 'PRT-' + Math.floor(Math.random() * 9000 + 1000);
+    item.profitShare = Number(item.profitShare || 0);
+
+    setData(prev => {
+      const partners = [...(prev.partners || [])];
+      const idx = partners.findIndex(p => p.id === item.id);
+      if (idx !== -1) {
+        partners[idx] = { ...partners[idx], ...item };
+      } else {
+        partners.push(item);
+      }
+
+      // If partner is also a worker, sync unified profile in labourers
+      let labourers = [...(prev.labourers || [])];
+      if (item.isLabour) {
+        const lbrIdx = labourers.findIndex(l => l.partnerId === item.id || l.name.toLowerCase() === item.name.toLowerCase());
+        if (lbrIdx !== -1) {
+          labourers[lbrIdx] = {
+            ...labourers[lbrIdx],
+            partnerId: item.id,
+            name: item.name,
+            phone: item.phone,
+            jobRole: item.jobRole || labourers[lbrIdx].jobRole || 'Kitchen Staff',
+            salaryType: item.salaryType || labourers[lbrIdx].salaryType || 'Monthly',
+            salaryAmount: Number(item.salaryAmount ?? labourers[lbrIdx].salaryAmount ?? 15000),
+            status: item.status || 'Active'
+          };
+        } else {
+          labourers.push({
+            id: 'LBR-' + Math.floor(Math.random() * 9000 + 1000),
+            partnerId: item.id,
+            name: item.name,
+            phone: item.phone,
+            jobRole: item.jobRole || 'Kitchen Staff',
+            salaryType: item.salaryType || 'Monthly',
+            salaryAmount: Number(item.salaryAmount || 15000),
+            workingDays: 26,
+            status: item.status || 'Active',
+            joiningDate: item.joiningDate || new Date().toISOString().split('T')[0]
+          });
+        }
+      }
+
+      const nextDb = { ...prev, partners, labourers };
+      saveDatabase(nextDb);
+      return nextDb;
+    });
+
+    showToast(`Partner profile for ${item.name} saved!`, 'success');
+    setIsLoading(false);
+
+    try {
+      await api.savePartner(item);
+    } catch (err) {
+      console.warn('Sync partner error:', err);
+    }
+    return item;
+  };
+
+  const deletePartner = async (partnerId) => {
+    setIsLoading(true);
+    setData(prev => {
+      const partners = (prev.partners || []).filter(p => p.id !== partnerId);
+      const labourers = (prev.labourers || []).map(l => l.partnerId === partnerId ? { ...l, partnerId: null } : l);
+      const nextDb = { ...prev, partners, labourers };
+      saveDatabase(nextDb);
+      return nextDb;
+    });
+    showToast('Partner profile removed.', 'success');
+    setIsLoading(false);
+    try {
+      await api.deletePartner(partnerId);
+    } catch (err) {
+      console.warn('Delete partner error:', err);
+    }
+  };
+
+  const recordPartnerWithdrawal = async ({ partnerId, partnerName, amount, paymentMethod = 'Cash', date, notes = '' }) => {
+    setIsLoading(true);
+    const numAmount = Number(amount || 0);
+    const withdrawalId = 'WITHDRAW-' + Date.now();
+    const withdrawDate = date || new Date().toISOString();
+
+    const withdrawalEntry = {
+      id: withdrawalId,
+      partnerId,
+      partnerName,
+      date: withdrawDate,
+      amount: numAmount,
+      paymentMethod,
+      notes: notes || `Partner profit withdrawal by ${partnerName}`
+    };
+
+    const txnPayload = {
+      id: 'TXN-' + Date.now(),
+      date: withdrawDate,
+      flow: 'OUT',
+      type: 'Partner Drawing',
+      partyName: partnerName,
+      reference: withdrawalId,
+      amount: numAmount,
+      paymentMethod,
+      notes: `Partner Withdrawal: ${partnerName}`
+    };
+
+    setData(prev => {
+      const nextWithdrawals = [withdrawalEntry, ...(prev.partnerWithdrawals || [])];
+      const nextTxns = [txnPayload, ...(prev.transactions || [])];
+      const nextDb = { ...prev, partnerWithdrawals: nextWithdrawals, transactions: nextTxns };
+      saveDatabase(nextDb);
+      return nextDb;
+    });
+
+    showToast(`Recorded profit withdrawal of ${data.settings?.currencySymbol || '₹'}${numAmount} for ${partnerName}!`, 'success');
+    setIsLoading(false);
+
+    try {
+      await api.recordPartnerWithdrawal(withdrawalEntry);
+      await api.saveRow('Transactions', txnPayload);
+    } catch (err) {
+      console.warn('Background sync withdrawal error:', err);
+    }
+  };
+
+  const deletePartnerWithdrawal = async (withdrawalId) => {
+    setIsLoading(true);
+    setData(prev => {
+      const nextWithdrawals = (prev.partnerWithdrawals || []).filter(w => w.id !== withdrawalId);
+      const nextTxns = (prev.transactions || []).filter(t => t.reference !== withdrawalId);
+      const nextDb = { ...prev, partnerWithdrawals: nextWithdrawals, transactions: nextTxns };
+      saveDatabase(nextDb);
+      return nextDb;
+    });
+    showToast('Partner withdrawal record removed.', 'success');
+    setIsLoading(false);
+    try {
+      await api.deletePartnerWithdrawal(withdrawalId);
+    } catch (err) {
+      console.warn('Delete withdrawal error:', err);
+    }
+  };
+
+  // =========================================================================
+  // LABOUR MANAGEMENT OPERATIONS
+  // =========================================================================
+
+  const saveLabourer = async (labourData) => {
+    setIsLoading(true);
+    const item = { ...labourData };
+    if (!item.id) item.id = 'LBR-' + Math.floor(Math.random() * 9000 + 1000);
+    item.salaryAmount = Number(item.salaryAmount || 0);
+
+    setData(prev => {
+      const labourers = [...(prev.labourers || [])];
+      const idx = labourers.findIndex(l => l.id === item.id);
+      if (idx !== -1) {
+        labourers[idx] = { ...labourers[idx], ...item };
+      } else {
+        labourers.push(item);
+      }
+
+      // If linked to partner, sync basic details in partners
+      let partners = [...(prev.partners || [])];
+      if (item.partnerId) {
+        const pIdx = partners.findIndex(p => p.id === item.partnerId);
+        if (pIdx !== -1) {
+          partners[pIdx] = {
+            ...partners[pIdx],
+            isLabour: true,
+            jobRole: item.jobRole,
+            salaryType: item.salaryType,
+            salaryAmount: item.salaryAmount
+          };
+        }
+      }
+
+      const nextDb = { ...prev, labourers, partners };
+      saveDatabase(nextDb);
+      return nextDb;
+    });
+
+    showToast(`Labour profile for ${item.name} saved!`, 'success');
+    setIsLoading(false);
+
+    try {
+      await api.saveLabourer(item);
+    } catch (err) {
+      console.warn('Sync labourer error:', err);
+    }
+    return item;
+  };
+
+  const deleteLabourer = async (labourId) => {
+    setIsLoading(true);
+    setData(prev => {
+      const target = (prev.labourers || []).find(l => l.id === labourId);
+      const labourers = (prev.labourers || []).filter(l => l.id !== labourId);
+      let partners = [...(prev.partners || [])];
+      if (target?.partnerId) {
+        partners = partners.map(p => p.id === target.partnerId ? { ...p, isLabour: false } : p);
+      }
+      const nextDb = { ...prev, labourers, partners };
+      saveDatabase(nextDb);
+      return nextDb;
+    });
+    showToast('Labourer record removed.', 'success');
+    setIsLoading(false);
+    try {
+      await api.deleteLabourer(labourId);
+    } catch (err) {
+      console.warn('Delete labourer error:', err);
+    }
+  };
+
+  const recordSalaryPayment = async ({ labourId, labourName, amount, paymentMethod = 'Cash', date, month, notes = '' }) => {
+    setIsLoading(true);
+    const numAmount = Number(amount || 0);
+    const paymentId = 'SALPAY-' + Date.now();
+    const payDate = date || new Date().toISOString();
+    const payMonth = month || new Date(payDate).toISOString().slice(0, 7);
+
+    const paymentEntry = {
+      id: paymentId,
+      labourId,
+      labourName,
+      date: payDate,
+      month: payMonth,
+      amount: numAmount,
+      paymentMethod,
+      notes: notes || `Salary payment for ${payMonth}`
+    };
+
+    // Operating business expense entry (deducted before calculating distributable profit)
+    const expenseEntry = {
+      id: 'EXP-SAL-' + Date.now(),
+      date: payDate,
+      category: 'Salaries',
+      amount: numAmount,
+      paymentMethod,
+      description: `Labour salary: ${labourName} (${payMonth})`
+    };
+
+    // Cash flow ledger entry
+    const txnPayload = {
+      id: 'TXN-' + Date.now(),
+      date: payDate,
+      flow: 'OUT',
+      type: 'Expense',
+      partyName: labourName,
+      reference: paymentId,
+      amount: numAmount,
+      paymentMethod,
+      notes: `Salary: ${labourName} (${payMonth})`
+    };
+
+    setData(prev => {
+      const nextPayments = [paymentEntry, ...(prev.salaryPayments || [])];
+      const nextExpenses = [expenseEntry, ...(prev.expenses || [])];
+      const nextTxns = [txnPayload, ...(prev.transactions || [])];
+      const nextDb = { ...prev, salaryPayments: nextPayments, expenses: nextExpenses, transactions: nextTxns };
+      saveDatabase(nextDb);
+      return nextDb;
+    });
+
+    showToast(`Recorded salary payment of ${data.settings?.currencySymbol || '₹'}${numAmount} to ${labourName}!`, 'success');
+    setIsLoading(false);
+
+    try {
+      await api.recordSalaryPayment(paymentEntry);
+      await api.saveRow('Expenses', expenseEntry);
+      await api.saveRow('Transactions', txnPayload);
+    } catch (err) {
+      console.warn('Background sync salary payment error:', err);
+    }
+  };
+
+  const deleteSalaryPayment = async (paymentId) => {
+    setIsLoading(true);
+    setData(prev => {
+      const target = (prev.salaryPayments || []).find(p => p.id === paymentId);
+      const nextPayments = (prev.salaryPayments || []).filter(p => p.id !== paymentId);
+      const nextExpenses = (prev.expenses || []).filter(e => e.id !== `EXP-SAL-${paymentId.replace('SALPAY-', '')}` && !e.description?.includes(paymentId));
+      const nextTxns = (prev.transactions || []).filter(t => t.reference !== paymentId);
+      const nextDb = { ...prev, salaryPayments: nextPayments, expenses: nextExpenses, transactions: nextTxns };
+      saveDatabase(nextDb);
+      return nextDb;
+    });
+    showToast('Salary payment record reversed.', 'success');
+    setIsLoading(false);
+    try {
+      await api.deleteSalaryPayment(paymentId);
+    } catch (err) {
+      console.warn('Delete salary payment error:', err);
+    }
+  };
+
+  const recordAttendance = async ({ labourId, labourName, date, status = 'Present', workingHours = 8, notes = '' }) => {
+    const attId = `ATT-${labourId}-${date}`;
+    const attEntry = {
+      id: attId,
+      labourId,
+      labourName,
+      date,
+      status,
+      workingHours: Number(workingHours || 8),
+      notes
+    };
+
+    setData(prev => {
+      const list = [...(prev.attendance || [])];
+      const idx = list.findIndex(a => (a.labourId === labourId && a.date === date) || a.id === attId);
+      if (idx !== -1) {
+        list[idx] = attEntry;
+      } else {
+        list.unshift(attEntry);
+      }
+      const nextDb = { ...prev, attendance: list };
+      saveDatabase(nextDb);
+      return nextDb;
+    });
+
+    showToast(`Attendance updated for ${labourName}!`, 'success');
+    try {
+      await api.recordAttendance(attEntry);
+    } catch (err) {
+      console.warn('Sync attendance error:', err);
+    }
+  };
+
   const saveSettings = async (updatedSettings) => {
     setIsLoading(true);
     try {
@@ -1020,6 +1361,36 @@ export const AppProvider = ({ children }) => {
     }
   };
 
+  const clearAllDatabaseData = async () => {
+    setIsLoading(true);
+    try {
+      await api.clearAllData();
+      clearCart();
+      setSelectedCustomer(null);
+      setData(prev => ({
+        ...prev,
+        transactions: [],
+        sales: [],
+        products: [],
+        rawMaterials: [],
+        purchases: [],
+        expenses: [],
+        customers: [],
+        suppliers: [],
+        recipes: [],
+        partnerWithdrawals: [],
+        salaryPayments: [],
+        attendance: []
+      }));
+      showToast('All data rows cleared from the site and Google Sheets!', 'success');
+      await refreshData(true);
+    } catch (err) {
+      showToast('Error clearing database: ' + err.message, 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <AppContext.Provider value={{
       data,
@@ -1027,6 +1398,7 @@ export const AppProvider = ({ children }) => {
       isLoading,
       isSyncing,
       refreshData,
+      clearAllDatabaseData,
       cart,
       addToCart,
       updateCartQuantity,
@@ -1057,6 +1429,15 @@ export const AppProvider = ({ children }) => {
       setupGoogleSheets,
       restoreData,
       forceSyncFromSheets,
+      savePartner,
+      deletePartner,
+      recordPartnerWithdrawal,
+      deletePartnerWithdrawal,
+      saveLabourer,
+      deleteLabourer,
+      recordSalaryPayment,
+      deleteSalaryPayment,
+      recordAttendance,
       toasts,
       showToast,
       removeToast,

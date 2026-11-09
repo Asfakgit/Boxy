@@ -12,23 +12,24 @@ import {
   User,
   Download,
   Eye,
-  CloudUpload,
   ExternalLink,
   CheckCircle2,
   RefreshCw,
   RotateCcw,
   XCircle
 } from 'lucide-react';
-import { exportToCSV, prepareSalesDataForCSV } from '../utils/exportUtils';
-import { printOrderReceipt, formatWhatsAppReceipt } from '../utils/receiptPrinter';
-import { DEFAULT_SHEET_URL, api } from '../services/apiService';
+import { printOrderReceipt } from '../utils/receiptPrinter';
+import { shareBillAsPNGViaWhatsApp, downloadBillPNG } from '../utils/billImageUtils';
+import { exportOrdersPDF } from '../utils/pdfExportUtils';
+import { DEFAULT_SHEET_URL } from '../services/apiService';
 
 export const OrdersHistory = () => {
   const { data, showToast, refundAndRestockOrder, showConfirmDialog } = useApp();
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [receiptModalOpen, setReceiptModalOpen] = useState(false);
   const [filterPayment, setFilterPayment] = useState('ALL');
-  const [isSyncingSheets, setIsSyncingSheets] = useState(false);
+  const [isSharingPNG, setIsSharingPNG] = useState(false);
+  const [isDownloadingPNG, setIsDownloadingPNG] = useState(false);
 
   const currency = data?.settings?.currencySymbol || '₹';
   const fmt = (val) => `${currency} ${Number(val || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -45,33 +46,45 @@ export const OrdersHistory = () => {
     setReceiptModalOpen(true);
   };
 
-  // 1. Export Clean CSV of Invoices
-  const handleExportCSV = () => {
-    const formatted = prepareSalesDataForCSV(filteredSales);
-    exportToCSV(formatted, `Boxy_Orders_Export_${new Date().toISOString().split('T')[0]}`);
+  const handleSharePNG = async (order) => {
+    const targetOrder = order || selectedOrder;
+    if (!targetOrder) return;
+    setIsSharingPNG(true);
+    try {
+      const res = await shareBillAsPNGViaWhatsApp(targetOrder, data?.settings, 'printable-receipt-history');
+      if (res?.message) {
+        showToast(res.message, res.success ? 'success' : 'info');
+      }
+    } catch (err) {
+      showToast('Error sharing bill image: ' + err.message, 'error');
+    } finally {
+      setIsSharingPNG(false);
+    }
   };
 
-  // 2. Synchronize All Invoices directly to Google Sheets Sales & Transactions Tabs
-  const handleSyncToGoogleSheet = async () => {
-    if (sales.length === 0) {
-      showToast('No orders recorded to sync.', 'info');
-      return;
-    }
-
-    setIsSyncingSheets(true);
+  const handleDownloadPNG = async (order) => {
+    const targetOrder = order || selectedOrder;
+    if (!targetOrder) return;
+    setIsDownloadingPNG(true);
     try {
-      let count = 0;
-      for (const sale of sales) {
-        await api.recordSale(sale);
-        count++;
-      }
-      showToast(`Successfully stored and synchronized ${count} invoices in Google Sheet!`, 'success');
+      const filename = await downloadBillPNG(targetOrder, data?.settings, 'printable-receipt-history');
+      showToast(`Bill image saved as ${filename}!`, 'success');
     } catch (err) {
-      console.error(err);
-      showToast('Error syncing invoices to Google Sheet: ' + err.message, 'error');
+      showToast('Error downloading image: ' + err.message, 'error');
     } finally {
-      setIsSyncingSheets(false);
+      setIsDownloadingPNG(false);
     }
+  };
+
+  // 1. Export Clean PDF of Invoices
+  const handleExportPDF = () => {
+    exportOrdersPDF({
+      sales: filteredSales,
+      filterPayment,
+      settings: data?.settings || {},
+      currency
+    });
+    showToast('Orders report downloaded in PDF format!', 'success');
   };
 
   const columns = [
@@ -167,15 +180,15 @@ export const OrdersHistory = () => {
           >
             <Printer className="w-4 h-4" />
           </Button>
-          <a
-            href={formatWhatsAppReceipt(r, data?.settings)}
-            target="_blank"
-            rel="noreferrer"
-            className="p-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-lg transition-colors"
-            title="Share Digital Bill on WhatsApp"
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => handleSharePNG(r)}
+            className="text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 p-1.5"
+            title="Share Bill as PNG via WhatsApp"
           >
             <Share2 className="w-4 h-4" />
-          </a>
+          </Button>
           {r.status !== 'Cancelled' && (
             <Button
               size="sm"
@@ -203,7 +216,7 @@ export const OrdersHistory = () => {
 
   return (
     <div className="space-y-6 animate-fadeIn pb-12">
-      {/* Header with Cloud Sync, Open Sheet, and Export CSV */}
+      {/* Header with Cloud Sync, Open Sheet, and Export PDF */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white">Orders & Invoices History</h2>
@@ -218,33 +231,21 @@ export const OrdersHistory = () => {
             href={DEFAULT_SHEET_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 shadow-2xs transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 shadow-2xs transition-colors"
           >
             <ExternalLink className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Open Google Sheet</span>
+            <span>Google Sheet</span>
           </a>
 
-          {/* Sync All Invoices to Google Sheet */}
+          {/* Export to PDF */}
           <Button
-            onClick={handleSyncToGoogleSheet}
-            isLoading={isSyncingSheets}
-            variant="outline"
-            icon={CloudUpload}
-            size="sm"
-            className="border-indigo-200 dark:border-indigo-900/60 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
-          >
-            {isSyncingSheets ? 'Storing...' : 'Store in Google Sheet'}
-          </Button>
-
-          {/* Export to CSV */}
-          <Button
-            onClick={handleExportCSV}
-            variant="success"
+            onClick={handleExportPDF}
+            variant="primary"
             icon={Download}
             size="sm"
-            className="bg-emerald-600 hover:bg-emerald-700 text-white"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm text-xs"
           >
-            Export Orders to CSV
+            Export to PDF
           </Button>
         </div>
       </div>
@@ -305,7 +306,7 @@ export const OrdersHistory = () => {
           title={`Order Receipt — #${selectedOrder.invoiceNumber}`}
         >
           <div className="space-y-4 pt-2">
-            <div className="p-5 bg-white text-slate-900 border border-slate-200 rounded-2xl font-mono text-xs shadow-inner space-y-3">
+            <div id="printable-receipt-history" className="p-5 bg-white text-slate-900 border border-slate-200 rounded-2xl font-mono text-xs shadow-inner space-y-3">
               <div className="text-center space-y-0.5 border-b border-dashed border-slate-300 pb-3 flex flex-col items-center">
                 <img src={data?.settings?.logo || '/logo.jpg'} alt="Logo" className="w-12 h-12 rounded-xl object-cover mb-2 ring-1 ring-amber-400/40 shadow-xs" />
                 <h3 className="font-black text-sm tracking-wider uppercase">{data?.settings?.companyName || 'BOXY CLOUD KITCHEN'}</h3>
@@ -364,30 +365,47 @@ export const OrdersHistory = () => {
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
-              <Button
-                size="sm"
-                variant="outline"
-                icon={Printer}
-                onClick={() => printOrderReceipt(selectedOrder, data?.settings)}
-              >
-                Print / Save PDF
-              </Button>
-              <a
-                href={formatWhatsAppReceipt(selectedOrder, data?.settings)}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs"
-              >
-                <Share2 className="w-3.5 h-3.5" />
-                <span>WhatsApp Share</span>
-              </a>
-              {selectedOrder.status !== 'Cancelled' && (
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-1.5 flex-wrap">
                 <Button
                   size="sm"
                   variant="outline"
-                  icon={RotateCcw}
-                  onClick={() => {
+                  icon={Printer}
+                  onClick={() => printOrderReceipt(selectedOrder, data?.settings)}
+                  className="text-xs"
+                >
+                  Print
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  icon={Download}
+                  onClick={() => handleDownloadPNG(selectedOrder)}
+                  isLoading={isDownloadingPNG}
+                  className="text-xs"
+                  title="Save receipt as PNG image"
+                >
+                  Save PNG
+                </Button>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                <Button
+                  size="sm"
+                  variant="primary"
+                  icon={Share2}
+                  onClick={() => handleSharePNG(selectedOrder)}
+                  isLoading={isSharingPNG}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-md shadow-emerald-600/20"
+                >
+                  Share Bill (PNG) via WhatsApp
+                </Button>
+                {selectedOrder.status !== 'Cancelled' && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    icon={RotateCcw}
+                    onClick={() => {
                     showConfirmDialog({
                       title: 'Cancel Order & Restock Raw Materials',
                       itemName: `#${selectedOrder.invoiceNumber}`,
@@ -410,7 +428,8 @@ export const OrdersHistory = () => {
               </Button>
             </div>
           </div>
-        </Modal>
+        </div>
+      </Modal>
       )}
     </div>
   );

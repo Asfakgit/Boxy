@@ -1,11 +1,13 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Table } from '../components/ui/Table';
-import { Building2, Plus, Edit2, Trash2, Phone, MapPin, DollarSign } from 'lucide-react';
+import { Building2, Plus, Edit2, Trash2, Phone, MapPin, DollarSign, FileText } from 'lucide-react';
 
 export const SupplierManagement = () => {
+  const navigate = useNavigate();
   const { data, saveItem, deleteItem, recordSupplierPayment, showConfirmDialog, isLoading } = useApp();
   const [modalOpen, setModalOpen] = useState(false);
   const [payModalOpen, setPayModalOpen] = useState(false);
@@ -144,6 +146,16 @@ export const SupplierManagement = () => {
               Pay Bill
             </Button>
           )}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => navigate(`/reports?tab=supplier-ledger&supplierId=${r.id}`)}
+            className="text-xs h-7 px-2 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800 hover:bg-amber-50 dark:hover:bg-amber-950/40"
+            title="View Vendor Ledger & Statement"
+          >
+            <FileText className="w-3.5 h-3.5 mr-1" />
+            Ledger
+          </Button>
           <Button size="sm" variant="ghost" onClick={() => openAddModal(r)}>
             <Edit2 className="w-3.5 h-3.5" />
           </Button>
@@ -179,9 +191,19 @@ export const SupplierManagement = () => {
             Manage your kitchen raw material vendors, wholesale suppliers, and pending bills
           </p>
         </div>
-        <Button onClick={() => openAddModal()} variant="primary" icon={Plus}>
-          Add New Supplier
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={() => navigate('/reports?tab=supplier-ledger')}
+            variant="outline"
+            icon={FileText}
+            className="text-xs"
+          >
+            Vendor Ledgers & Statements
+          </Button>
+          <Button onClick={() => openAddModal()} variant="primary" icon={Plus}>
+            Add New Supplier
+          </Button>
+        </div>
       </div>
 
       {/* Summary KPI Banner */}

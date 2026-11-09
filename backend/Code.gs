@@ -26,7 +26,12 @@ const SHEET_NAMES = {
   EXPENSES: 'Expenses',
   CUSTOMERS: 'Customers',
   SUPPLIERS: 'Suppliers',
-  RECIPES: 'Recipes'
+  RECIPES: 'Recipes',
+  PARTNERS: 'Partners',
+  LABOURERS: 'Labourers',
+  PARTNER_WITHDRAWALS: 'Partner Withdrawals',
+  SALARY_PAYMENTS: 'Salary Payments',
+  ATTENDANCE: 'Attendance'
 };
 
 const UNWANTED_SHEETS = [
@@ -50,7 +55,12 @@ const SCHEMAS = {
   [SHEET_NAMES.EXPENSES]: ['id', 'date', 'category', 'amount', 'paymentMethod', 'description'],
   [SHEET_NAMES.CUSTOMERS]: ['id', 'name', 'phone', 'address', 'outstandingBalance', 'creditLimit'],
   [SHEET_NAMES.SUPPLIERS]: ['id', 'name', 'phone', 'address', 'outstandingBalance'],
-  [SHEET_NAMES.RECIPES]: ['id', 'productCode', 'productName', 'rawMaterialId', 'rawMaterialName', 'quantity', 'unit', 'costPerUnit', 'totalCost']
+  [SHEET_NAMES.RECIPES]: ['id', 'productCode', 'productName', 'rawMaterialId', 'rawMaterialName', 'quantity', 'unit', 'costPerUnit', 'totalCost'],
+  [SHEET_NAMES.PARTNERS]: ['id', 'name', 'phone', 'address', 'joiningDate', 'profitShare', 'isPartner', 'isLabour', 'status', 'notes'],
+  [SHEET_NAMES.LABOURERS]: ['id', 'partnerId', 'name', 'phone', 'jobRole', 'salaryType', 'salaryAmount', 'workingDays', 'status', 'joiningDate'],
+  [SHEET_NAMES.PARTNER_WITHDRAWALS]: ['id', 'partnerId', 'partnerName', 'date', 'amount', 'paymentMethod', 'notes'],
+  [SHEET_NAMES.SALARY_PAYMENTS]: ['id', 'labourId', 'labourName', 'date', 'month', 'amount', 'paymentMethod', 'notes'],
+  [SHEET_NAMES.ATTENDANCE]: ['id', 'labourId', 'labourName', 'date', 'status', 'workingHours', 'notes']
 };
 
 // Distinct tab colors for clean visual navigation in Google Sheets
@@ -63,7 +73,12 @@ const TAB_COLORS = {
   [SHEET_NAMES.EXPENSES]: '#e11d48',    // Rose
   [SHEET_NAMES.CUSTOMERS]: '#0d9488',   // Teal
   [SHEET_NAMES.SUPPLIERS]: '#ea580c',   // Orange
-  [SHEET_NAMES.RECIPES]: '#ec4899'      // Pink
+  [SHEET_NAMES.RECIPES]: '#ec4899',     // Pink
+  [SHEET_NAMES.PARTNERS]: '#059669',    // Green
+  [SHEET_NAMES.LABOURERS]: '#d97706',   // Amber
+  [SHEET_NAMES.PARTNER_WITHDRAWALS]: '#2563eb', // Blue
+  [SHEET_NAMES.SALARY_PAYMENTS]: '#dc2626', // Red
+  [SHEET_NAMES.ATTENDANCE]: '#8b5cf6'   // Violet
 };
 
 /**
@@ -112,6 +127,31 @@ function cleanupSheetDatabase() {
     deletedSheets: deleted,
     activeSheets: Object.values(SHEET_NAMES),
     setup: setupRes
+  };
+}
+
+/**
+ * Clear all data rows across all core sheets while preserving styled header rows
+ */
+function clearAllSheetData() {
+  const ss = getSpreadsheet();
+  const cleared = [];
+
+  Object.values(SHEET_NAMES).forEach(sheetName => {
+    const sheet = ss.getSheetByName(sheetName);
+    if (sheet) {
+      const lastRow = sheet.getLastRow();
+      if (lastRow > 1) {
+        sheet.deleteRows(2, lastRow - 1);
+        cleared.push({ sheet: sheetName, rowsDeleted: lastRow - 1 });
+      }
+    }
+  });
+
+  return {
+    status: 'success',
+    message: 'All data rows cleared across all sheets',
+    clearedSheets: cleared
   };
 }
 
@@ -231,6 +271,10 @@ function doGet(e) {
       case 'cleanup':
         data = cleanupSheetDatabase();
         break;
+      case 'clearAllData':
+      case 'purgeAllData':
+        data = clearAllSheetData();
+        break;
       default:
         return createJSONResponse({ status: 'error', message: 'Unknown action: ' + action });
     }
@@ -271,6 +315,10 @@ function doPost(e) {
         break;
       case 'cleanupDatabase':
         result = cleanupSheetDatabase();
+        break;
+      case 'clearAllData':
+      case 'purgeAllData':
+        result = clearAllSheetData();
         break;
       case 'recordSale':
         result = recordSaleEntry(data);
@@ -874,7 +922,12 @@ function getAllDatabaseData() {
     expenses: getSheetData(SHEET_NAMES.EXPENSES),
     customers: getSheetData(SHEET_NAMES.CUSTOMERS),
     suppliers: getSheetData(SHEET_NAMES.SUPPLIERS),
-    recipes: getSheetData(SHEET_NAMES.RECIPES)
+    recipes: getSheetData(SHEET_NAMES.RECIPES),
+    partners: getSheetData(SHEET_NAMES.PARTNERS),
+    labourers: getSheetData(SHEET_NAMES.LABOURERS),
+    partnerWithdrawals: getSheetData(SHEET_NAMES.PARTNER_WITHDRAWALS),
+    salaryPayments: getSheetData(SHEET_NAMES.SALARY_PAYMENTS),
+    attendance: getSheetData(SHEET_NAMES.ATTENDANCE)
   };
 }
 

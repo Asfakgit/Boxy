@@ -1,12 +1,14 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
 import { Table } from '../components/ui/Table';
-import { Users, Plus, Edit2, Trash2, DollarSign, Store, Phone } from 'lucide-react';
+import { Users, Plus, Edit2, Trash2, DollarSign, Store, Phone, FileText } from 'lucide-react';
 
 export const CustomerManagement = () => {
+  const navigate = useNavigate();
   const { data, saveItem, deleteItem, recordCustomerSettlement, showConfirmDialog, isLoading } = useApp();
   const [modalOpen, setModalOpen] = useState(false);
   const [settleModalOpen, setSettleModalOpen] = useState(false);
@@ -155,6 +157,16 @@ export const CustomerManagement = () => {
               Receive
             </Button>
           )}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => navigate(`/reports?tab=customer-ledger&customerId=${r.id}`)}
+            className="text-xs h-7 px-2 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
+            title="View Individual Financial Ledger & Statement"
+          >
+            <FileText className="w-3.5 h-3.5 mr-1" />
+            Ledger
+          </Button>
           <Button size="sm" variant="ghost" onClick={() => openAddModal(r)}>
             <Edit2 className="w-3.5 h-3.5" />
           </Button>
@@ -190,9 +202,19 @@ export const CustomerManagement = () => {
             Manage your corporate accounts, retail cafe clients, and credit balances
           </p>
         </div>
-        <Button onClick={() => openAddModal()} variant="primary" icon={Plus}>
-          Add New Customer
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={() => navigate('/reports?tab=customer-ledger')}
+            variant="outline"
+            icon={FileText}
+            className="text-xs"
+          >
+            Customer Ledgers & Statements
+          </Button>
+          <Button onClick={() => openAddModal()} variant="primary" icon={Plus}>
+            Add New Customer
+          </Button>
+        </div>
       </div>
 
       {/* Summary KPI Banner */}

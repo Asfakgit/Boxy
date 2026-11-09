@@ -23,5 +23,74 @@ export const INITIAL_DATA = {
   expenses: [],
   customers: [],
   suppliers: [],
-  recipes: []
+  recipes: [],
+  partners: [
+    {
+      id: "PRT-001",
+      name: "Ashfak",
+      phone: "918089974243",
+      address: "Kochi, Kerala",
+      joiningDate: "2024-01-01",
+      profitShare: 40,
+      isPartner: true,
+      isLabour: false,
+      status: "Active",
+      notes: "Founding Partner (40% Shareholder)"
+    },
+    {
+      id: "PRT-002",
+      name: "Rayya",
+      phone: "919876543210",
+      address: "Kochi, Kerala",
+      joiningDate: "2024-01-01",
+      profitShare: 30,
+      isPartner: true,
+      isLabour: true,
+      status: "Active",
+      notes: "Partner & Active Kitchen Staff (30% Shareholder)"
+    },
+    {
+      id: "PRT-003",
+      name: "Fathima",
+      phone: "919876543211",
+      address: "Kochi, Kerala",
+      joiningDate: "2024-01-01",
+      profitShare: 30,
+      isPartner: true,
+      isLabour: true,
+      status: "Active",
+      notes: "Partner & Active Kitchen Staff (30% Shareholder)"
+    }
+  ],
+  labourers: [
+    {
+      id: "LBR-001",
+      partnerId: "PRT-002",
+      name: "Rayya",
+      phone: "919876543210",
+      jobRole: "Kitchen Supervisor & Head Chef",
+      joiningDate: "2024-01-01",
+      salaryType: "Monthly",
+      salaryAmount: 18000,
+      workingDays: 26,
+      status: "Active",
+      notes: "Partner working as active Head Chef"
+    },
+    {
+      id: "LBR-002",
+      partnerId: "PRT-003",
+      name: "Fathima",
+      phone: "919876543211",
+      jobRole: "Kitchen Operations & Prep Chef",
+      joiningDate: "2024-01-01",
+      salaryType: "Monthly",
+      salaryAmount: 18000,
+      workingDays: 26,
+      status: "Active",
+      notes: "Partner working as active Operations Chef"
+    }
+  ],
+  partnerWithdrawals: [],
+  salaryPayments: [],
+  attendance: []
 };

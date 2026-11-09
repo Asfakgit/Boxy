@@ -18,12 +18,13 @@ import {
   AlertCircle,
   Upload,
   RotateCcw,
-  ExternalLink
+  ExternalLink,
+  Trash2
 } from 'lucide-react';
 import { DEFAULT_SHEET_URL } from '../services/apiService';
 
 export const SettingsConfiguration = () => {
-  const { data, saveSettings, forceSyncFromSheets, isLoading, isSyncing } = useApp();
+  const { data, saveSettings, forceSyncFromSheets, clearAllDatabaseData, showConfirmDialog, isLoading, isSyncing } = useApp();
   const { theme, toggleTheme } = useTheme();
   const { currentUser, changeCredentials } = useAuth();
 
@@ -287,28 +288,17 @@ export const SettingsConfiguration = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">GST / Tax Rate (%)</label>
-              <input
-                type="number"
-                step="any"
-                value={taxRate}
-                onChange={(e) => setTaxRate(e.target.value)}
-                placeholder="0"
-                className="w-full px-3.5 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold"
-              />
-              <p className="text-[11px] text-slate-400 mt-1">Default is 0%. When 0, GST is omitted from bills unless added during POS checkout.</p>
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Established Year</label>
-              <input
-                type="text"
-                value="2022"
-                disabled
-                className="w-full px-3.5 py-2.5 text-sm bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-400 font-semibold cursor-not-allowed"
-              />
-            </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">GST / Tax Rate (%)</label>
+            <input
+              type="number"
+              step="any"
+              value={taxRate}
+              onChange={(e) => setTaxRate(e.target.value)}
+              placeholder="0"
+              className="w-full px-3.5 py-2.5 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold"
+            />
+            <p className="text-[11px] text-slate-400 mt-1">Default is 0%. When 0, GST is omitted from bills unless added during POS checkout.</p>
           </div>
 
           <div>
@@ -439,19 +429,49 @@ export const SettingsConfiguration = () => {
         </div>
       </Card>
 
-      {/* Data Backups */}
+      {/* Data Backups & Reset */}
       <Card title="Data Management & Backups">
-        <div className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 font-bold text-sm text-slate-900 dark:text-white mb-1">
-              <HardDrive className="w-4 h-4 text-indigo-600" />
-              <span>Download Database JSON Backup</span>
+        <div className="space-y-4">
+          <div className="p-4 rounded-2xl border border-slate-200 dark:border-neutral-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2 font-bold text-sm text-slate-900 dark:text-white mb-1">
+                <HardDrive className="w-4 h-4 text-indigo-600" />
+                <span>Download Database JSON Backup</span>
+              </div>
+              <p className="text-xs text-slate-500">Export all records (Items, Sales, Purchases, Transactions) for offline safety.</p>
             </div>
-            <p className="text-xs text-slate-500">Export all records (Items, Sales, Purchases, Transactions) for offline safety.</p>
+            <Button onClick={handleDownloadBackup} variant="secondary" size="sm" className="shrink-0">
+              Download Backup (.json)
+            </Button>
           </div>
-          <Button onClick={handleDownloadBackup} variant="secondary" size="sm" className="shrink-0">
-            Download Backup (.json)
-          </Button>
+
+          <div className="p-4 rounded-2xl border border-rose-200 dark:border-rose-950/60 bg-rose-50/30 dark:bg-rose-950/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2 font-bold text-sm text-rose-600 dark:text-rose-400 mb-1">
+                <Trash2 className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+                <span>Remove All Data (Site & Google Sheets)</span>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Permanently wipes all sales, orders, items, customers, suppliers, and cash flow transactions from both the website and Google Sheets database.
+              </p>
+            </div>
+            <Button
+              onClick={() => {
+                showConfirmDialog({
+                  title: 'Wipe All Database Data?',
+                  message: 'Are you sure you want to delete ALL data from the website and Google Sheets? This includes all orders, menu products, raw materials, customers, suppliers, and transaction records. This action cannot be undone.',
+                  type: 'danger',
+                  confirmText: 'Yes, Wipe All Data',
+                  onConfirm: clearAllDatabaseData
+                });
+              }}
+              variant="outline"
+              size="sm"
+              className="shrink-0 border-rose-300 dark:border-rose-800 text-rose-600 dark:text-rose-400 hover:bg-rose-600 hover:text-white transition-colors"
+            >
+              Clear All Data
+            </Button>
+          </div>
         </div>
       </Card>
     </div>

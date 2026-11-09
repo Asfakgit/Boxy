@@ -24,7 +24,6 @@ import {
   ArrowRight,
   Calculator,
   ChevronDown,
-  RotateCcw,
   ChefHat,
   CookingPot,
   ScrollText,
@@ -35,7 +34,7 @@ import {
 import { calculateIngredientCost, getCompatibleUnits, convertQuantity, UNIT_METADATA } from '../utils/unitConverter';
 
 export const ItemManagement = () => {
-  const { data, saveItem, deleteItem, adjustStock, resetAllStockToZero, saveRecipe, deleteRecipe, getRecipeForProduct, showConfirmDialog, isLoading } = useApp();
+  const { data, saveItem, deleteItem, adjustStock, saveRecipe, deleteRecipe, getRecipeForProduct, showConfirmDialog, isLoading } = useApp();
   const [activeTab, setActiveTab] = useState('stock'); // 'stock', 'products', 'materials', 'categories', 'recipes'
   const [modalOpen, setModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
@@ -677,23 +676,6 @@ export const ItemManagement = () => {
           >
             Add Raw Material
           </Button>
-          <Button
-            onClick={() => {
-              showConfirmDialog({
-                title: 'Set All Current Stock to 0',
-                itemName: 'Entire Kitchen Inventory',
-                message: 'Are you sure you want to set current stock to 0 for all menu items and raw materials? This will zero out current inventory levels and sync to Google Sheets.',
-                type: 'danger',
-                confirmText: 'Yes, Set All to 0',
-                onConfirm: resetAllStockToZero
-              });
-            }}
-            variant="outline"
-            icon={RotateCcw}
-            className="text-xs border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:text-rose-600 hover:border-rose-300"
-          >
-            Set Stock to 0
-          </Button>
         </div>
       </div>
 
@@ -701,43 +683,43 @@ export const ItemManagement = () => {
       <div className="flex bg-slate-100 dark:bg-slate-800 p-1 sm:p-1.5 rounded-2xl w-full sm:w-max border border-slate-200/80 dark:border-slate-700/80 gap-1 overflow-x-auto max-w-full scrollbar-none">
         <button
           onClick={() => setActiveTab('stock')}
-          className={`flex items-center gap-2 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl font-bold text-xs whitespace-nowrap shrink-0 transition-all ${
+          className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl font-bold text-xs whitespace-nowrap shrink-0 transition-all ${
             activeTab === 'stock'
               ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
           }`}
         >
           <Boxes className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-          <span>All Stock & Items ({unifiedStock.length})</span>
+          <span>All Stock ({unifiedStock.length})</span>
         </button>
 
         <button
           onClick={() => setActiveTab('products')}
-          className={`flex items-center gap-2 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl font-bold text-xs whitespace-nowrap shrink-0 transition-all ${
+          className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl font-bold text-xs whitespace-nowrap shrink-0 transition-all ${
             activeTab === 'products'
               ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
           }`}
         >
           <UtensilsCrossed className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-          <span>Menu Items / Dishes ({data?.products?.length || 0})</span>
+          <span>Menu Items ({data?.products?.length || 0})</span>
         </button>
 
         <button
           onClick={() => setActiveTab('materials')}
-          className={`flex items-center gap-2 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl font-bold text-xs whitespace-nowrap shrink-0 transition-all ${
+          className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl font-bold text-xs whitespace-nowrap shrink-0 transition-all ${
             activeTab === 'materials'
               ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
           }`}
         >
           <Package className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-          <span>Raw Materials / Ingredients ({data?.rawMaterials?.length || 0})</span>
+          <span>Raw Materials ({data?.rawMaterials?.length || 0})</span>
         </button>
 
         <button
           onClick={() => { setActiveTab('categories'); setCategoryFilter(''); }}
-          className={`flex items-center gap-2 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl font-bold text-xs whitespace-nowrap shrink-0 transition-all ${
+          className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl font-bold text-xs whitespace-nowrap shrink-0 transition-all ${
             activeTab === 'categories'
               ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
@@ -749,14 +731,14 @@ export const ItemManagement = () => {
 
         <button
           onClick={() => { setActiveTab('recipes'); setCategoryFilter(''); }}
-          className={`flex items-center gap-2 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl font-bold text-xs whitespace-nowrap shrink-0 transition-all ${
+          className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl font-bold text-xs whitespace-nowrap shrink-0 transition-all ${
             activeTab === 'recipes'
               ? 'bg-white dark:bg-slate-900 text-rose-600 dark:text-rose-400 shadow-xs'
               : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
           }`}
         >
           <ChefHat className="w-4 h-4 text-rose-500" />
-          <span>Recipes / BOM ({configuredRecipesCount}/{data?.products?.length || 0})</span>
+          <span>Recipes ({configuredRecipesCount})</span>
         </button>
       </div>
 
