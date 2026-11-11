@@ -26,25 +26,25 @@ export const Modal = ({ isOpen, onClose, title, subtitle, children, maxWidth = '
         className={`relative w-full ${maxWidth} bg-white dark:bg-black rounded-2xl shadow-2xl border border-slate-200 dark:border-neutral-800 overflow-hidden max-h-[92vh] flex flex-col`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-100 dark:border-neutral-800 bg-slate-50/50 dark:bg-neutral-950/50">
+        <div className="flex items-center justify-between px-3.5 sm:px-5 py-2.5 sm:py-3 border-b border-slate-100 dark:border-neutral-800 bg-slate-50/50 dark:bg-neutral-950/50">
           <div className="min-w-0 pr-2">
-            <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 truncate">{title}</h3>
-            {subtitle && <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">{subtitle}</p>}
+            <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-slate-100 truncate">{title}</h3>
+            {subtitle && <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">{subtitle}</p>}
           </div>
           <button 
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-neutral-900 transition-colors shrink-0"
+            className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-neutral-900 transition-colors shrink-0"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="p-4 sm:p-6 overflow-y-auto flex-1">
+        <div className="p-3.5 sm:p-5 overflow-y-auto flex-1">
           {children}
         </div>
 
         {footer && (
-          <div className="px-4 sm:px-6 py-3 sm:py-4 bg-slate-50/80 dark:bg-neutral-950/80 border-t border-slate-100 dark:border-neutral-800 flex justify-end gap-2 sm:gap-3 flex-wrap">
+          <div className="px-3.5 sm:px-5 py-2.5 sm:py-3 bg-slate-50/80 dark:bg-neutral-950/80 border-t border-slate-100 dark:border-neutral-800 flex justify-end gap-2 sm:gap-2.5 flex-wrap">
             {footer}
           </div>
         )}

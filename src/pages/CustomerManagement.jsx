@@ -218,24 +218,24 @@ export const CustomerManagement = () => {
       </div>
 
       {/* Summary KPI Banner */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex items-center justify-between">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
+        <div className="p-3 sm:p-3.5 rounded-xl bg-white dark:bg-neutral-950 border border-slate-200/80 dark:border-neutral-800 shadow-2xs flex items-center justify-between">
           <div>
-            <p className="text-xs font-bold uppercase text-slate-400">Total Registered Customers</p>
-            <h3 className="text-2xl font-black text-slate-900 dark:text-white mt-1">{customers.length} Accounts</h3>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Registered Customers</p>
+            <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white mt-0.5">{customers.length} Accounts</h3>
           </div>
-          <div className="w-11 h-11 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 flex items-center justify-center">
-            <Users className="w-5 h-5" />
+          <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 flex items-center justify-center shrink-0">
+            <Users className="w-4 h-4" />
           </div>
         </div>
 
-        <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex items-center justify-between">
+        <div className="p-3 sm:p-3.5 rounded-xl bg-white dark:bg-neutral-950 border border-slate-200/80 dark:border-neutral-800 shadow-2xs flex items-center justify-between">
           <div>
-            <p className="text-xs font-bold uppercase text-slate-400">Total Outstanding Receivables</p>
-            <h3 className="text-2xl font-black text-rose-600 dark:text-rose-400 mt-1">{fmt(totalReceivables)}</h3>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Outstanding Receivables</p>
+            <h3 className="text-lg sm:text-xl font-black text-rose-600 dark:text-rose-400 mt-0.5">{fmt(totalReceivables)}</h3>
           </div>
-          <div className="w-11 h-11 rounded-2xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 flex items-center justify-center">
-            <DollarSign className="w-5 h-5" />
+          <div className="w-8 h-8 rounded-lg bg-rose-50 dark:bg-rose-950/60 text-rose-600 flex items-center justify-center shrink-0">
+            <DollarSign className="w-4 h-4" />
           </div>
         </div>
       </div>

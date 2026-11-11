@@ -9,7 +9,9 @@ import { useNavigate } from 'react-router-dom';
 import {
   calculateBusinessFinancials,
   calculatePartnerSummary,
-  fmtCurrency
+  fmtCurrency,
+  formatDate,
+  isWithinDateRange
 } from '../utils/partnerLabourUtils';
 import { exportPartnerStatementPDF } from '../utils/pdfExportUtils';
 import {
@@ -294,12 +296,12 @@ export const PartnerManagement = () => {
       </div>
 
       {/* 2. Date Presets & Range Filter Bar */}
-      <div className="p-4 rounded-2xl bg-white dark:bg-neutral-950 border border-slate-200/80 dark:border-neutral-800 shadow-xs space-y-3">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+      <div className="p-2.5 sm:p-3 rounded-xl bg-white dark:bg-neutral-950 border border-slate-200/80 dark:border-neutral-800 shadow-2xs space-y-2.5">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5">
           {/* Quick Presets */}
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 md:pb-0">
-            <span className="text-xs font-bold text-slate-400 mr-1 shrink-0 flex items-center gap-1">
-              <Calendar className="w-3.5 h-3.5 text-emerald-600" /> Period:
+            <span className="text-[11px] font-bold text-slate-400 mr-1 shrink-0 flex items-center gap-1">
+              <Calendar className="w-3.5 h-3.5 text-emerald-500" /> Period:
             </span>
             {[
               { id: 'this-month', label: 'This Month' },
@@ -311,9 +313,9 @@ export const PartnerManagement = () => {
               <button
                 key={p.id}
                 onClick={() => handlePresetChange(p.id)}
-                className={`whitespace-nowrap px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${
+                className={`whitespace-nowrap px-2.5 py-1 text-xs font-bold rounded-lg transition-all ${
                   activePreset === p.id
-                    ? 'bg-emerald-600 text-white shadow-xs'
+                    ? 'bg-emerald-600 text-white shadow-2xs'
                     : 'bg-slate-100 dark:bg-neutral-900 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
@@ -325,7 +327,7 @@ export const PartnerManagement = () => {
           {/* Date Pickers */}
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-bold text-slate-400 uppercase">From:</span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase">From:</span>
               <input
                 type="date"
                 value={startDate}
@@ -333,11 +335,11 @@ export const PartnerManagement = () => {
                   setStartDate(e.target.value);
                   setActivePreset('custom');
                 }}
-                className="px-2.5 py-1 text-xs bg-slate-50 dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-lg font-bold text-slate-900 dark:text-white"
+                className="px-2 py-1 text-xs bg-slate-50 dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-lg font-bold text-slate-900 dark:text-white"
               />
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-bold text-slate-400 uppercase">To:</span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase">To:</span>
               <input
                 type="date"
                 value={endDate}
@@ -345,7 +347,7 @@ export const PartnerManagement = () => {
                   setEndDate(e.target.value);
                   setActivePreset('custom');
                 }}
-                className="px-2.5 py-1 text-xs bg-slate-50 dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-lg font-bold text-slate-900 dark:text-white"
+                className="px-2 py-1 text-xs bg-slate-50 dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-lg font-bold text-slate-900 dark:text-white"
               />
             </div>
           </div>
@@ -353,74 +355,74 @@ export const PartnerManagement = () => {
       </div>
 
       {/* 3. Partner Financial Dashboard (4 Essential Metric Cards) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
         {/* Total Distributable Profit */}
-        <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-neutral-950 border border-slate-200/80 dark:border-neutral-800 shadow-xs flex flex-col justify-between">
+        <div className="p-3 sm:p-3.5 rounded-xl bg-white dark:bg-neutral-950 border border-slate-200/80 dark:border-neutral-800 shadow-2xs flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Distributable Profit</span>
-            <div className="p-2 rounded-xl bg-indigo-50 dark:bg-neutral-900 text-indigo-600 dark:text-indigo-400">
-              <TrendingUp className="w-4 h-4" />
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Distributable Profit</span>
+            <div className="p-1.5 rounded-lg bg-indigo-50 dark:bg-neutral-900 text-indigo-600 dark:text-indigo-400">
+              <TrendingUp className="w-3.5 h-3.5" />
             </div>
           </div>
-          <div className="mt-2">
-            <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
+          <div className="mt-1">
+            <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white">
               {fmt(financials.distributableProfit)}
             </h3>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-              Net profit after all labour wages
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+              After labour wages
             </p>
           </div>
         </div>
 
         {/* Total Allocated to Partners */}
-        <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-neutral-950 border border-slate-200/80 dark:border-neutral-800 shadow-xs flex flex-col justify-between">
+        <div className="p-3 sm:p-3.5 rounded-xl bg-white dark:bg-neutral-950 border border-slate-200/80 dark:border-neutral-800 shadow-2xs flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Allocated</span>
-            <div className="p-2 rounded-xl bg-emerald-50 dark:bg-neutral-900 text-emerald-600 dark:text-emerald-400">
-              <Percent className="w-4 h-4" />
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Allocated</span>
+            <div className="p-1.5 rounded-lg bg-emerald-50 dark:bg-neutral-900 text-emerald-600 dark:text-emerald-400">
+              <Percent className="w-3.5 h-3.5" />
             </div>
           </div>
-          <div className="mt-2">
-            <h3 className="text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400">
+          <div className="mt-1">
+            <h3 className="text-lg sm:text-xl font-black text-emerald-600 dark:text-emerald-400">
               {fmt(partnerSummary.totalAllocatedProfit)}
             </h3>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-              100% of distributable pool
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+              100% of profit pool
             </p>
           </div>
         </div>
 
         {/* Total Partner Withdrawals */}
-        <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-neutral-950 border border-slate-200/80 dark:border-neutral-800 shadow-xs flex flex-col justify-between">
+        <div className="p-3 sm:p-3.5 rounded-xl bg-white dark:bg-neutral-950 border border-slate-200/80 dark:border-neutral-800 shadow-2xs flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Withdrawals</span>
-            <div className="p-2 rounded-xl bg-rose-50 dark:bg-neutral-900 text-rose-600 dark:text-rose-400">
-              <CreditCard className="w-4 h-4" />
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Withdrawals</span>
+            <div className="p-1.5 rounded-lg bg-rose-50 dark:bg-neutral-900 text-rose-600 dark:text-rose-400">
+              <CreditCard className="w-3.5 h-3.5" />
             </div>
           </div>
-          <div className="mt-2">
-            <h3 className="text-xl sm:text-2xl font-black text-rose-600 dark:text-rose-400">
+          <div className="mt-1">
+            <h3 className="text-lg sm:text-xl font-black text-rose-600 dark:text-rose-400">
               {fmt(partnerSummary.totalWithdrawals)}
             </h3>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-              Drawings from equity pool
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+              Drawings from equity
             </p>
           </div>
         </div>
 
         {/* Remaining Partner Balances */}
-        <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-neutral-950 border border-slate-200/80 dark:border-neutral-800 shadow-xs flex flex-col justify-between">
+        <div className="p-3 sm:p-3.5 rounded-xl bg-white dark:bg-neutral-950 border border-slate-200/80 dark:border-neutral-800 shadow-2xs flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Remaining Balance</span>
-            <div className="p-2 rounded-xl bg-emerald-50 dark:bg-neutral-900 text-emerald-600 dark:text-emerald-400">
-              <Wallet className="w-4 h-4" />
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Remaining Balance</span>
+            <div className="p-1.5 rounded-lg bg-emerald-50 dark:bg-neutral-900 text-emerald-600 dark:text-emerald-400">
+              <Wallet className="w-3.5 h-3.5" />
             </div>
           </div>
-          <div className="mt-2">
-            <h3 className={`text-xl sm:text-2xl font-black ${partnerSummary.totalRemainingBalance >= 0 ? 'text-slate-900 dark:text-white' : 'text-rose-600'}`}>
+          <div className="mt-1">
+            <h3 className={`text-lg sm:text-xl font-black ${partnerSummary.totalRemainingBalance >= 0 ? 'text-slate-900 dark:text-white' : 'text-rose-600'}`}>
               {fmt(partnerSummary.totalRemainingBalance)}
             </h3>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
               Available to draw
             </p>
           </div>
@@ -464,26 +466,26 @@ export const PartnerManagement = () => {
           return (
             <div
               key={partner.id}
-              className="p-5 rounded-2xl bg-white dark:bg-neutral-950 border border-slate-200/80 dark:border-neutral-800 shadow-xs flex flex-col justify-between hover:border-emerald-500/40 transition-all"
+              className="p-3.5 sm:p-4 rounded-xl bg-white dark:bg-neutral-950 border border-slate-200/80 dark:border-neutral-800 shadow-2xs flex flex-col justify-between hover:border-emerald-500/40 transition-all"
             >
               <div>
                 {/* Top: Name, Avatar, Share Badge */}
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white flex items-center justify-center font-black text-lg shadow-sm shadow-emerald-600/30">
+                <div className="flex items-start justify-between gap-2.5">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white flex items-center justify-center font-black text-sm shadow-sm shadow-emerald-600/30 shrink-0">
                       {partner.name.charAt(0).toUpperCase()}
                     </div>
                     <div>
-                      <h3 className="font-black text-base text-slate-900 dark:text-white leading-tight">
+                      <h3 className="font-extrabold text-sm text-slate-900 dark:text-white leading-tight">
                         {partner.name}
                       </h3>
-                      <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+                      <p className="text-[10px] text-slate-400 font-medium mt-0.5">
                         Joined {formatDate(partner.joiningDate)}
                       </p>
                     </div>
                   </div>
 
-                  <span className="px-2.5 py-1 rounded-xl bg-emerald-50 dark:bg-neutral-900 text-emerald-600 dark:text-emerald-400 text-xs font-black border border-emerald-200/60 dark:border-neutral-800">
+                  <span className="px-2 py-0.5 rounded-lg bg-emerald-50 dark:bg-neutral-900 text-emerald-600 dark:text-emerald-400 text-[11px] font-black border border-emerald-200/60 dark:border-neutral-800 shrink-0">
                     {partner.sharePct}% Share
                   </span>
                 </div>

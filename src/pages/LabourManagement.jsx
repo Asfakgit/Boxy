@@ -8,7 +8,9 @@ import { Table } from '../components/ui/Table';
 import { useNavigate } from 'react-router-dom';
 import {
   calculateLabourSummary,
-  fmtCurrency
+  fmtCurrency,
+  formatDate,
+  isWithinDateRange
 } from '../utils/partnerLabourUtils';
 import { exportLabourStatementPDF } from '../utils/pdfExportUtils';
 import {
@@ -271,13 +273,13 @@ export const LabourManagement = () => {
   return (
     <div className="space-y-6 animate-fadeIn pb-12">
       {/* 1. Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-white dark:bg-neutral-950 border border-slate-200/80 dark:border-neutral-800 shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 sm:p-3.5 rounded-xl bg-white dark:bg-neutral-950 border border-slate-200/80 dark:border-neutral-800 shadow-2xs">
         <div>
-          <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2.5">
-            <HardHat className="w-6 h-6 text-amber-500" />
+          <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
+            <HardHat className="w-5 h-5 text-amber-500" />
             <span>Labour Management</span>
           </h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
             Track kitchen staff, wages, attendance, and salary expense records
           </p>
         </div>
@@ -288,7 +290,7 @@ export const LabourManagement = () => {
             size="sm"
             onClick={() => navigate('/partners')}
             icon={Users}
-            className="text-xs border-slate-200 dark:border-neutral-800 text-slate-700 dark:text-slate-300"
+            className="text-xs h-7.5 px-2.5 py-1 border-slate-200 dark:border-neutral-800 text-slate-700 dark:text-slate-300"
           >
             Partners Section
           </Button>
@@ -297,7 +299,7 @@ export const LabourManagement = () => {
             size="sm"
             onClick={() => openAttendanceModal()}
             icon={Clock}
-            className="text-xs border-slate-200 dark:border-neutral-800 text-slate-700 dark:text-slate-300"
+            className="text-xs h-7.5 px-2.5 py-1 border-slate-200 dark:border-neutral-800 text-slate-700 dark:text-slate-300"
           >
             Mark Attendance
           </Button>
@@ -306,7 +308,7 @@ export const LabourManagement = () => {
             size="sm"
             onClick={openAddLabourModal}
             icon={Plus}
-            className="text-xs bg-amber-600 hover:bg-amber-700 text-white font-bold shadow-md shadow-amber-600/20"
+            className="text-xs h-7.5 px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold shadow-md shadow-amber-600/20"
           >
             Add Worker
           </Button>
@@ -314,11 +316,11 @@ export const LabourManagement = () => {
       </div>
 
       {/* 2. Date Presets & Range Filter Bar */}
-      <div className="p-4 rounded-2xl bg-white dark:bg-neutral-950 border border-slate-200/80 dark:border-neutral-800 shadow-xs space-y-3">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+      <div className="p-2.5 sm:p-3 rounded-xl bg-white dark:bg-neutral-950 border border-slate-200/80 dark:border-neutral-800 shadow-2xs space-y-2.5">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5">
           {/* Quick Presets */}
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 md:pb-0">
-            <span className="text-xs font-bold text-slate-400 mr-1 shrink-0 flex items-center gap-1">
+            <span className="text-[11px] font-bold text-slate-400 mr-1 shrink-0 flex items-center gap-1">
               <Calendar className="w-3.5 h-3.5 text-amber-500" /> Period:
             </span>
             {[
@@ -331,9 +333,9 @@ export const LabourManagement = () => {
               <button
                 key={p.id}
                 onClick={() => handlePresetChange(p.id)}
-                className={`whitespace-nowrap px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${
+                className={`whitespace-nowrap px-2.5 py-1 text-xs font-bold rounded-lg transition-all ${
                   activePreset === p.id
-                    ? 'bg-amber-600 text-white shadow-xs'
+                    ? 'bg-amber-600 text-white shadow-2xs'
                     : 'bg-slate-100 dark:bg-neutral-900 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
@@ -345,7 +347,7 @@ export const LabourManagement = () => {
           {/* Date Pickers */}
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-bold text-slate-400 uppercase">From:</span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase">From:</span>
               <input
                 type="date"
                 value={startDate}
@@ -353,11 +355,11 @@ export const LabourManagement = () => {
                   setStartDate(e.target.value);
                   setActivePreset('custom');
                 }}
-                className="px-2.5 py-1 text-xs bg-slate-50 dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-lg font-bold text-slate-900 dark:text-white"
+                className="px-2 py-1 text-xs bg-slate-50 dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-lg font-bold text-slate-900 dark:text-white"
               />
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-bold text-slate-400 uppercase">To:</span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase">To:</span>
               <input
                 type="date"
                 value={endDate}
@@ -365,7 +367,7 @@ export const LabourManagement = () => {
                   setEndDate(e.target.value);
                   setActivePreset('custom');
                 }}
-                className="px-2.5 py-1 text-xs bg-slate-50 dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-lg font-bold text-slate-900 dark:text-white"
+                className="px-2 py-1 text-xs bg-slate-50 dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-lg font-bold text-slate-900 dark:text-white"
               />
             </div>
           </div>
@@ -373,75 +375,75 @@ export const LabourManagement = () => {
       </div>
 
       {/* 3. Labour Financial Dashboard (4 KPI Metric Cards) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
         {/* Total Active Workers */}
-        <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-neutral-950 border border-slate-200/80 dark:border-neutral-800 shadow-xs flex flex-col justify-between">
+        <div className="p-3 sm:p-3.5 rounded-xl bg-white dark:bg-neutral-950 border border-slate-200/80 dark:border-neutral-800 shadow-2xs flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Active Labourers</span>
-            <div className="p-2 rounded-xl bg-amber-50 dark:bg-neutral-900 text-amber-600 dark:text-amber-400">
-              <HardHat className="w-4 h-4" />
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Active Labourers</span>
+            <div className="p-1.5 rounded-lg bg-amber-50 dark:bg-neutral-900 text-amber-600 dark:text-amber-400">
+              <HardHat className="w-3.5 h-3.5" />
             </div>
           </div>
-          <div className="mt-2">
-            <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
+          <div className="mt-1">
+            <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white">
               {labourSummary.totalActiveLabourers} Workers
             </h3>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-              Including partner active staff
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+              Active staff & partners
             </p>
           </div>
         </div>
 
         {/* Total Salary Expense */}
-        <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-neutral-950 border border-slate-200/80 dark:border-neutral-800 shadow-xs flex flex-col justify-between">
+        <div className="p-3 sm:p-3.5 rounded-xl bg-white dark:bg-neutral-950 border border-slate-200/80 dark:border-neutral-800 shadow-2xs flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Salary Expense</span>
-            <div className="p-2 rounded-xl bg-rose-50 dark:bg-neutral-900 text-rose-600 dark:text-rose-400">
-              <TrendingUp className="w-4 h-4" />
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Salary Expense</span>
+            <div className="p-1.5 rounded-lg bg-rose-50 dark:bg-neutral-900 text-rose-600 dark:text-rose-400">
+              <TrendingUp className="w-3.5 h-3.5" />
             </div>
           </div>
-          <div className="mt-2">
-            <h3 className="text-xl sm:text-2xl font-black text-rose-600 dark:text-rose-400">
+          <div className="mt-1">
+            <h3 className="text-lg sm:text-xl font-black text-rose-600 dark:text-rose-400">
               {fmt(labourSummary.totalMonthlySalaryExpense)}
             </h3>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-              Deducted as business expense
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+              Operating deduction
             </p>
           </div>
         </div>
 
         {/* Total Salary Paid */}
-        <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-neutral-950 border border-slate-200/80 dark:border-neutral-800 shadow-xs flex flex-col justify-between">
+        <div className="p-3 sm:p-3.5 rounded-xl bg-white dark:bg-neutral-950 border border-slate-200/80 dark:border-neutral-800 shadow-2xs flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Salary Paid</span>
-            <div className="p-2 rounded-xl bg-emerald-50 dark:bg-neutral-900 text-emerald-600 dark:text-emerald-400">
-              <CheckCircle2 className="w-4 h-4" />
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Paid</span>
+            <div className="p-1.5 rounded-lg bg-emerald-50 dark:bg-neutral-900 text-emerald-600 dark:text-emerald-400">
+              <CheckCircle2 className="w-3.5 h-3.5" />
             </div>
           </div>
-          <div className="mt-2">
-            <h3 className="text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400">
+          <div className="mt-1">
+            <h3 className="text-lg sm:text-xl font-black text-emerald-600 dark:text-emerald-400">
               {fmt(labourSummary.totalSalaryPaid)}
             </h3>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-              Paid wages in this period
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+              Disbursed in period
             </p>
           </div>
         </div>
 
         {/* Total Pending Salary */}
-        <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-neutral-950 border border-slate-200/80 dark:border-neutral-800 shadow-xs flex flex-col justify-between">
+        <div className="p-3 sm:p-3.5 rounded-xl bg-white dark:bg-neutral-950 border border-slate-200/80 dark:border-neutral-800 shadow-2xs flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Pending Salaries</span>
-            <div className="p-2 rounded-xl bg-amber-50 dark:bg-neutral-900 text-amber-600 dark:text-amber-400">
-              <AlertCircle className="w-4 h-4" />
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Pending Salaries</span>
+            <div className="p-1.5 rounded-lg bg-amber-50 dark:bg-neutral-900 text-amber-600 dark:text-amber-400">
+              <AlertCircle className="w-3.5 h-3.5" />
             </div>
           </div>
-          <div className="mt-2">
-            <h3 className={`text-xl sm:text-2xl font-black ${labourSummary.totalPendingSalary > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-900 dark:text-white'}`}>
+          <div className="mt-1">
+            <h3 className={`text-lg sm:text-xl font-black ${labourSummary.totalPendingSalary > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-900 dark:text-white'}`}>
               {fmt(labourSummary.totalPendingSalary)}
             </h3>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-              Wages due to workers
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+              Wages due to staff
             </p>
           </div>
         </div>
@@ -453,26 +455,26 @@ export const LabourManagement = () => {
           return (
             <div
               key={worker.id}
-              className="p-5 rounded-2xl bg-white dark:bg-neutral-950 border border-slate-200/80 dark:border-neutral-800 shadow-xs flex flex-col justify-between hover:border-amber-500/40 transition-all"
+              className="p-3.5 sm:p-4 rounded-xl bg-white dark:bg-neutral-950 border border-slate-200/80 dark:border-neutral-800 shadow-2xs flex flex-col justify-between hover:border-amber-500/40 transition-all"
             >
               <div>
                 {/* Top: Name, Role, Status */}
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 text-white flex items-center justify-center font-black text-lg shadow-sm shadow-amber-500/30">
+                <div className="flex items-start justify-between gap-2.5">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white flex items-center justify-center font-black text-sm shadow-sm shadow-amber-500/30 shrink-0">
                       {worker.name.charAt(0).toUpperCase()}
                     </div>
                     <div>
-                      <h3 className="font-black text-base text-slate-900 dark:text-white leading-tight">
+                      <h3 className="font-extrabold text-sm text-slate-900 dark:text-white leading-tight">
                         {worker.name}
                       </h3>
-                      <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+                      <p className="text-[10px] text-slate-400 font-medium mt-0.5">
                         {worker.jobRole || 'Kitchen Worker'}
                       </p>
                     </div>
                   </div>
 
-                  <Badge variant={worker.status === 'Active' ? 'success' : 'default'}>
+                  <Badge variant={worker.status === 'Active' ? 'success' : 'default'} className="text-[10px] px-2 py-0.5">
                     {worker.status || 'Active'}
                   </Badge>
                 </div>

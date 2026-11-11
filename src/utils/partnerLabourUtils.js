@@ -9,6 +9,24 @@ export const fmtCurrency = (val, symbol = '₹') =>
   `${symbol} ${Number(val || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 /**
+ * Format date string to readable format (e.g. 10 Nov 2026)
+ */
+export const formatDate = (dateStr) => {
+  if (!dateStr) return '—';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return String(dateStr);
+    return d.toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    });
+  } catch {
+    return String(dateStr);
+  }
+};
+
+/**
  * Filter transactions/records by date range (inclusive)
  */
 export const isWithinDateRange = (dateStr, startDate, endDate) => {

@@ -318,62 +318,62 @@ export const BalanceSheetReport = () => {
       </div>
 
       {/* 4 Clean Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-neutral-950 border border-slate-200/80 dark:border-neutral-800 shadow-xs">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
+        <div className="p-3 sm:p-3.5 rounded-xl bg-white dark:bg-neutral-950 border border-slate-200/80 dark:border-neutral-800 shadow-2xs flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Assets</span>
-            <div className="p-2 rounded-xl bg-indigo-50 dark:bg-neutral-900 text-indigo-600 dark:text-indigo-400">
-              <Scale className="w-4 h-4" />
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Assets</span>
+            <div className="p-1.5 rounded-lg bg-indigo-50 dark:bg-neutral-900 text-indigo-600 dark:text-indigo-400">
+              <Scale className="w-3.5 h-3.5" />
             </div>
           </div>
-          <div className="mt-2">
-            <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">{fmt(balanceSheet.totalAssets)}</h3>
-            <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+          <div className="mt-1">
+            <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white">{fmt(balanceSheet.totalAssets)}</h3>
+            <p className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-0.5">
               Cash & Inventory at cost
             </p>
           </div>
         </div>
 
-        <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-neutral-950 border border-slate-200/80 dark:border-neutral-800 shadow-xs">
+        <div className="p-3 sm:p-3.5 rounded-xl bg-white dark:bg-neutral-950 border border-slate-200/80 dark:border-neutral-800 shadow-2xs flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Liabilities</span>
-            <div className="p-2 rounded-xl bg-rose-50 dark:bg-neutral-900 text-rose-600 dark:text-rose-400">
-              <CreditCard className="w-4 h-4" />
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Liabilities</span>
+            <div className="p-1.5 rounded-lg bg-rose-50 dark:bg-neutral-900 text-rose-600 dark:text-rose-400">
+              <CreditCard className="w-3.5 h-3.5" />
             </div>
           </div>
-          <div className="mt-2">
-            <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">{fmt(balanceSheet.totalLiabilities)}</h3>
-            <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-              Suppliers & Tax payables
+          <div className="mt-1">
+            <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white">{fmt(balanceSheet.totalLiabilities)}</h3>
+            <p className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-0.5">
+              Suppliers, Wages & Tax
             </p>
           </div>
         </div>
 
-        <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-neutral-950 border border-slate-200/80 dark:border-neutral-800 shadow-xs">
+        <div className="p-3 sm:p-3.5 rounded-xl bg-white dark:bg-neutral-950 border border-slate-200/80 dark:border-neutral-800 shadow-2xs flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Owner's Equity</span>
-            <div className="p-2 rounded-xl bg-emerald-50 dark:bg-neutral-900 text-emerald-600 dark:text-emerald-400">
-              <TrendingUp className="w-4 h-4" />
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Owner's Equity</span>
+            <div className="p-1.5 rounded-lg bg-emerald-50 dark:bg-neutral-900 text-emerald-600 dark:text-emerald-400">
+              <TrendingUp className="w-3.5 h-3.5" />
             </div>
           </div>
-          <div className="mt-2">
-            <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">{fmt(balanceSheet.totalEquity)}</h3>
-            <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+          <div className="mt-1">
+            <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white">{fmt(balanceSheet.totalEquity)}</h3>
+            <p className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-0.5">
               Cumulative net business worth
             </p>
           </div>
         </div>
 
-        <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-neutral-950 border border-slate-200/80 dark:border-neutral-800 shadow-xs">
+        <div className="p-3 sm:p-3.5 rounded-xl bg-white dark:bg-neutral-950 border border-slate-200/80 dark:border-neutral-800 shadow-2xs flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Working Capital</span>
-            <div className="p-2 rounded-xl bg-indigo-50 dark:bg-neutral-900 text-indigo-600 dark:text-indigo-400">
-              <Wallet className="w-4 h-4" />
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Working Capital</span>
+            <div className="p-1.5 rounded-lg bg-indigo-50 dark:bg-neutral-900 text-indigo-600 dark:text-indigo-400">
+              <Wallet className="w-3.5 h-3.5" />
             </div>
           </div>
-          <div className="mt-2">
-            <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">{fmt(workingCapital)}</h3>
-            <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+          <div className="mt-1">
+            <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white">{fmt(workingCapital)}</h3>
+            <p className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-0.5">
               Current ratio: {currentRatio}
             </p>
           </div>

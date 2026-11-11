@@ -92,32 +92,32 @@ export const Dashboard = () => {
   return (
     <div className="space-y-6 animate-fadeIn">
       {/* 1. Welcome & Quick Action Header */}
-      <div className="p-5 sm:p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5 min-w-0">
+      <div className="p-3 sm:p-4 rounded-xl bg-white dark:bg-neutral-950 border border-slate-200/80 dark:border-neutral-800 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
           <img
             src={appLogo}
             alt="Boxy Logo"
-            className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl object-cover ring-2 ring-amber-400/50 shadow-md shadow-amber-500/20 shrink-0"
+            className="w-10 h-10 rounded-xl object-cover ring-2 ring-amber-400/50 shadow-md shadow-amber-500/20 shrink-0"
           />
           <div className="min-w-0">
-            <h2 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white truncate">
+            <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white truncate">
               {data?.settings?.companyName || 'Boxy Cloud Kitchen'}
             </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5 mt-0.5">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1.5 mt-0.5">
               <Calendar className="w-3.5 h-3.5 text-indigo-500" />
               <span>{todayFormatted}</span>
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
+        <div className="flex items-center gap-2 shrink-0 flex-wrap">
           <Button
             size="sm"
             variant="outline"
             icon={RefreshCw}
             isLoading={isSyncing}
             onClick={() => refreshData()}
-            className="text-xs"
+            className="text-xs h-7.5 px-2.5 py-1"
           >
             {isSyncing ? 'Syncing...' : 'Sync Data'}
           </Button>
@@ -127,7 +127,7 @@ export const Dashboard = () => {
             variant="primary"
             icon={Plus}
             onClick={() => navigate('/pos')}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/20"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-600/20 h-7.5 px-3 py-1"
           >
             New Sale (POS)
           </Button>
@@ -153,23 +153,23 @@ export const Dashboard = () => {
       )}
 
       {/* 3. The 4 Simple Numbers (Easy to Understand at a glance) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
         {/* Today's Sales */}
         <div 
           onClick={() => navigate('/orders')}
-          className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs hover:border-indigo-400 cursor-pointer transition-all flex flex-col justify-between"
+          className="p-3 sm:p-3.5 rounded-xl bg-white dark:bg-neutral-950 border border-slate-200/80 dark:border-neutral-800 shadow-2xs hover:border-indigo-400 cursor-pointer transition-all flex flex-col justify-between"
         >
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Today's Sales</span>
-            <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
-              <ShoppingBag className="w-4 h-4" />
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Today's Sales</span>
+            <div className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+              <ShoppingBag className="w-3.5 h-3.5" />
             </div>
           </div>
           <div>
-            <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
+            <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white">
               {fmt(todaySalesAmount)}
             </h3>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
               {todayOrders.length} {todayOrders.length === 1 ? 'order' : 'orders'} today
             </p>
           </div>
@@ -178,20 +178,20 @@ export const Dashboard = () => {
         {/* Today's Expenses */}
         <div 
           onClick={() => navigate('/purchases')}
-          className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs hover:border-amber-400 cursor-pointer transition-all flex flex-col justify-between"
+          className="p-3 sm:p-3.5 rounded-xl bg-white dark:bg-neutral-950 border border-slate-200/80 dark:border-neutral-800 shadow-2xs hover:border-amber-400 cursor-pointer transition-all flex flex-col justify-between"
         >
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Today's Costs</span>
-            <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center">
-              <Truck className="w-4 h-4" />
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Today's Costs</span>
+            <div className="w-7 h-7 rounded-lg bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+              <Truck className="w-3.5 h-3.5" />
             </div>
           </div>
           <div>
-            <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
+            <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white">
               {fmt(todayCosts)}
             </h3>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-              Purchases & kitchen expenses
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+              Purchases & expenses
             </p>
           </div>
         </div>
@@ -199,19 +199,19 @@ export const Dashboard = () => {
         {/* Today's Net Profit */}
         <div 
           onClick={() => navigate('/transactions')}
-          className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs hover:border-emerald-400 cursor-pointer transition-all flex flex-col justify-between"
+          className="p-3 sm:p-3.5 rounded-xl bg-white dark:bg-neutral-950 border border-slate-200/80 dark:border-neutral-800 shadow-2xs hover:border-emerald-400 cursor-pointer transition-all flex flex-col justify-between"
         >
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Today's Profit</span>
-            <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
-              <TrendingUp className="w-4 h-4" />
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Today's Profit</span>
+            <div className="w-7 h-7 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+              <TrendingUp className="w-3.5 h-3.5" />
             </div>
           </div>
           <div>
-            <h3 className={`text-xl sm:text-2xl font-black ${todayNetProfit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600'}`}>
+            <h3 className={`text-lg sm:text-xl font-black ${todayNetProfit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600'}`}>
               {todayNetProfit >= 0 ? '+' : ''}{fmt(todayNetProfit)}
             </h3>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
               Sales minus today's costs
             </p>
           </div>
@@ -220,24 +220,24 @@ export const Dashboard = () => {
         {/* Inventory Stock Status */}
         <div 
           onClick={() => navigate('/items')}
-          className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs hover:border-purple-400 cursor-pointer transition-all flex flex-col justify-between"
+          className="p-3 sm:p-3.5 rounded-xl bg-white dark:bg-neutral-950 border border-slate-200/80 dark:border-neutral-800 shadow-2xs hover:border-purple-400 cursor-pointer transition-all flex flex-col justify-between"
         >
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Stock Status</span>
-            <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Stock Status</span>
+            <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${
               lowStockCount > 0 
                 ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-600' 
                 : 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600'
             }`}>
-              {lowStockCount > 0 ? <AlertTriangle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
+              {lowStockCount > 0 ? <AlertTriangle className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
             </div>
           </div>
           <div>
-            <h3 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
+            <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white">
               {lowStockCount > 0 ? `${lowStockCount} Low` : 'All Good'}
             </h3>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-              {lowStockCount > 0 ? 'Items below reorder level' : 'Stock levels healthy'}
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+              {lowStockCount > 0 ? 'Below reorder level' : 'Stock levels healthy'}
             </p>
           </div>
         </div>
