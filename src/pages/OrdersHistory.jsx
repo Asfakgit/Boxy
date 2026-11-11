@@ -8,20 +8,18 @@ import {
   Printer,
   Share2,
   Receipt,
-  Calendar,
   User,
   Download,
   Eye,
   ExternalLink,
-  CheckCircle2,
-  RefreshCw,
-  RotateCcw,
-  XCircle
+  RotateCcw
 } from 'lucide-react';
 import { printOrderReceipt } from '../utils/receiptPrinter';
 import { shareBillAsPNGViaWhatsApp, downloadBillPNG } from '../utils/billImageUtils';
 import { exportOrdersPDF } from '../utils/pdfExportUtils';
 import { DEFAULT_SHEET_URL } from '../services/apiService';
+import { formatMoney } from '../utils/format';
+import { useCollections } from '../hooks/useCollections';
 
 export const OrdersHistory = () => {
   const { data, showToast, refundAndRestockOrder, showConfirmDialog } = useApp();
@@ -32,9 +30,9 @@ export const OrdersHistory = () => {
   const [isDownloadingPNG, setIsDownloadingPNG] = useState(false);
 
   const currency = data?.settings?.currencySymbol || '₹';
-  const fmt = (val) => `${currency} ${Number(val || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const fmt = (val) => formatMoney(val, currency);
 
-  const sales = data?.sales || [];
+  const { sales } = useCollections();
   const filteredSales = filterPayment === 'ALL' ? sales : sales.filter(s => s.paymentMethod === filterPayment);
 
   const totalSalesRevenue = sales.reduce((sum, s) => sum + Number(s.totalAmount || 0), 0);

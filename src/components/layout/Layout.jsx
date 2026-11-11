@@ -113,7 +113,7 @@ export const Layout = ({ children }) => {
   const toggleSidebar = () => {
     setSidebarCollapsed(prev => {
       const next = !prev;
-      try { localStorage.setItem('boxy_sidebar_collapsed', String(next)); } catch (_e) { /* ignore */ }
+      try { localStorage.setItem('boxy_sidebar_collapsed', String(next)); } catch { /* ignore */ }
       return next;
     });
   };

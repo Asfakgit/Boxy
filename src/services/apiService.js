@@ -19,7 +19,7 @@ try {
   localStorage.removeItem('boxy_cloud_kitchen_db_v1');
   localStorage.removeItem('boxy_cloud_kitchen_db');
   localStorage.removeItem('boxy_custom_categories');
-} catch (e) {
+} catch {
   // Ignore in non-browser environments
 }
 

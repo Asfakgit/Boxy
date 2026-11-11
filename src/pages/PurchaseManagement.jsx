@@ -5,6 +5,8 @@ import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
 import { Table } from '../components/ui/Table';
 import { Truck, Plus, Trash2, Calendar, Building2, Package } from 'lucide-react';
+import { formatMoney } from '../utils/format';
+import { useCollections } from '../hooks/useCollections';
 
 export const PurchaseManagement = () => {
   const { data, recordPurchaseEntry, deleteItem, showConfirmDialog, isLoading } = useApp();
@@ -27,12 +29,9 @@ export const PurchaseManagement = () => {
   const [rmPrice, setRmPrice] = useState('');
 
   const currency = data?.settings?.currencySymbol || '₹';
-  const fmt = (val) => `${currency} ${Number(val || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const fmt = (val) => formatMoney(val, currency);
 
-  const suppliers = data?.suppliers || [];
-  const rawMaterials = data?.rawMaterials || [];
-  const products = data?.products || [];
-  const purchases = data?.purchases || [];
+  const { suppliers, rawMaterials, products, purchases } = useCollections();
 
   const allStockItems = useMemo(() => {
     const list = [];

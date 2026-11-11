@@ -5,8 +5,9 @@
  * and labour salary calculations with 100% financial consistency.
  */
 
-export const fmtCurrency = (val, symbol = '₹') => 
-  `${symbol} ${Number(val || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+import { formatMoney } from './format';
+
+export const fmtCurrency = (val, symbol = '₹') => formatMoney(val, symbol, 'en-IN');
 
 /**
  * Format date string to readable format (e.g. 10 Nov 2026)
@@ -175,7 +176,7 @@ export const calculateLabourSummary = ({
     // 2. Calculate Earned Salary
     const baseSalary = Number(l.salaryAmount || 0);
     const standardWorkingDays = Number(l.workingDays || 26);
-    let earnedSalary = 0;
+    let earnedSalary;
 
     if (l.salaryType === 'Daily') {
       earnedSalary = effectiveDaysWorked > 0 ? (baseSalary * effectiveDaysWorked) : (baseSalary * standardWorkingDays);

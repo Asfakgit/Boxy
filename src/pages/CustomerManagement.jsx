@@ -6,6 +6,8 @@ import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
 import { Table } from '../components/ui/Table';
 import { Users, Plus, Edit2, Trash2, DollarSign, Store, Phone, FileText } from 'lucide-react';
+import { formatMoney } from '../utils/format';
+import { useCollections } from '../hooks/useCollections';
 
 export const CustomerManagement = () => {
   const navigate = useNavigate();
@@ -26,9 +28,9 @@ export const CustomerManagement = () => {
   const [settleMethod, setSettleMethod] = useState('Cash');
 
   const currency = data?.settings?.currencySymbol || '₹';
-  const fmt = (val) => `${currency} ${Number(val || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const fmt = (val) => formatMoney(val, currency);
 
-  const customers = data?.customers || [];
+  const { customers } = useCollections();
   const totalReceivables = customers.reduce((sum, c) => sum + Number(c.outstandingBalance || 0), 0);
 
   const openAddModal = (cust = null) => {

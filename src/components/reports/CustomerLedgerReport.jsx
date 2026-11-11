@@ -16,16 +16,16 @@ import {
   X,
   DollarSign
 } from 'lucide-react';
+import { formatMoney } from '../../utils/format';
+import { useCollections } from '../../hooks/useCollections';
 
 export const CustomerLedgerReport = ({ initialCustomerId = null }) => {
   const { data, recordCustomerSettlement } = useApp();
 
-  const customers = data?.customers || [];
-  const sales = data?.sales || [];
-  const transactions = data?.transactions || [];
+  const { customers, sales, transactions } = useCollections();
 
   const currency = data?.settings?.currencySymbol || '₹';
-  const fmt = (val) => `${currency} ${Number(val || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const fmt = (val) => formatMoney(val, currency, 'en-IN');
 
   // 1. ISOLATE CUSTOMER SEARCH STATE
   const [searchQuery, setSearchQuery] = useState('');

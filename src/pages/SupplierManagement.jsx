@@ -5,6 +5,8 @@ import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Table } from '../components/ui/Table';
 import { Building2, Plus, Edit2, Trash2, Phone, MapPin, DollarSign, FileText } from 'lucide-react';
+import { formatMoney } from '../utils/format';
+import { useCollections } from '../hooks/useCollections';
 
 export const SupplierManagement = () => {
   const navigate = useNavigate();
@@ -23,9 +25,9 @@ export const SupplierManagement = () => {
   const [paymentMethod, setPaymentMethod] = useState('Bank Transfer');
 
   const currency = data?.settings?.currencySymbol || '₹';
-  const fmt = (val) => `${currency} ${Number(val || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const fmt = (val) => formatMoney(val, currency);
 
-  const suppliers = data?.suppliers || [];
+  const { suppliers } = useCollections();
   const totalPayables = suppliers.reduce((sum, s) => sum + Number(s.outstandingBalance || 0), 0);
 
   const openAddModal = (sup = null) => {

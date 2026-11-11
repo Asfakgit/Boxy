@@ -14,6 +14,8 @@ import {
   Plus,
   Scale
 } from 'lucide-react';
+import { formatMoney } from '../utils/format';
+import { useCollections } from '../hooks/useCollections';
 
 export const TransactionsLedger = () => {
   const navigate = useNavigate();
@@ -30,9 +32,9 @@ export const TransactionsLedger = () => {
   const expRecordedBy = 'Manager';
 
   const currency = data?.settings?.currencySymbol || '₹';
-  const fmt = (val) => `${currency} ${Number(val || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const fmt = (val) => formatMoney(val, currency);
 
-  const transactions = data?.transactions || [];
+  const { transactions } = useCollections();
 
   // Filtered transactions
   const filtered = transactions.filter(t => {

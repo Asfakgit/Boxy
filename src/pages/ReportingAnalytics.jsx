@@ -29,21 +29,18 @@ import {
   Filter,
   Search,
   Package,
-  Layers,
   ArrowRight,
   ChevronRight,
-  FileText,
-  CheckCircle2,
   PieChart,
   ChefHat,
-  CookingPot,
-  AlertTriangle,
   Scale,
   Users,
   Building2,
   HeartHandshake
 } from 'lucide-react';
-import { convertQuantity, calculateIngredientCost } from '../utils/unitConverter';
+import { calculateIngredientCost } from '../utils/unitConverter';
+import { formatMoney } from '../utils/format';
+import { useCollections } from '../hooks/useCollections';
 
 // Robust date string normalizer (returns YYYY-MM-DD)
 const normalizeDate = (raw) => {
@@ -76,6 +73,8 @@ export const ReportingAnalytics = () => {
     if (tabParam && tabParam !== activeTab) {
       setActiveTab(tabParam);
     }
+    // Only sync when the URL changes; including activeTab would undo in-page tab clicks.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tabParam]);
 
   const handleTabChange = (newTab) => {
@@ -90,12 +89,9 @@ export const ReportingAnalytics = () => {
   const currency = data?.settings?.currencySymbol || '₹';
   const appName = data?.settings?.appName || 'Boxy';
   const logo = data?.settings?.logo || '/logo.jpg';
-  const fmt = (val) => `${currency} ${Number(val || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const fmt = (val) => formatMoney(val, currency);
 
-  const sales = data?.sales || [];
-  const purchases = data?.purchases || [];
-  const expenses = data?.expenses || [];
-  const transactions = data?.transactions || [];
+  const { sales, purchases, expenses, rawMaterials, products, recipes } = useCollections();
 
   // ==========================================
   // 1. DAILY REPORT STATE & CALCULATIONS
@@ -460,18 +456,14 @@ export const ReportingAnalytics = () => {
       financials,
       partnerSummary
     };
-  }, [sales, purchases, expenses, customStartDate, customEndDate, customCategoryFilter, customPaymentFilter, customSearchTerm, data?.salaryPayments, data?.partners, data?.partnerWithdrawals]);
+  }, [sales, purchases, expenses, customStartDate, customEndDate, customPaymentFilter, customSearchTerm, data?.salaryPayments, data?.partners, data?.partnerWithdrawals]);
 
   // ==========================================
   // 4. KITCHEN RECIPES & CONSUMPTION REPORT
   // ==========================================
   const [kitchenSubTab, setKitchenSubTab] = useState('stock'); // 'stock', 'product_consumption', 'invoice_consumption', 'recipe_costs'
-  const [kitchenSearch, setKitchenSearch] = useState('');
 
   const kitchenData = useMemo(() => {
-    const rawMaterials = data?.rawMaterials || [];
-    const products = data?.products || [];
-    const recipes = data?.recipes || [];
     const completedSales = sales.filter(s => s.status !== 'Cancelled');
 
     // 1. Current Raw Materials Stock Status & Valuation
@@ -641,7 +633,7 @@ export const ReportingAnalytics = () => {
       invoiceConsumptionList,
       recipeCostingList
     };
-  }, [sales, data?.rawMaterials, data?.products, data?.recipes]);
+  }, [sales, rawMaterials, products, recipes]);
 
   // ==========================================
   // PRINT & EXPORT HANDLERS

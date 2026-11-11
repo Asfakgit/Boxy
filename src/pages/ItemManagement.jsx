@@ -16,7 +16,6 @@ import {
   Upload,
   AlertTriangle,
   CheckCircle2,
-  XCircle,
   Sliders,
   TrendingUp,
   Tag,
@@ -25,16 +24,13 @@ import {
   Calculator,
   ChevronDown,
   ChefHat,
-  CookingPot,
-  ScrollText,
-  Sparkles,
-  Layers,
-  BookOpen
+  CookingPot
 } from 'lucide-react';
-import { calculateIngredientCost, getCompatibleUnits, convertQuantity, UNIT_METADATA } from '../utils/unitConverter';
+import { calculateIngredientCost, getCompatibleUnits } from '../utils/unitConverter';
+import { formatMoney } from '../utils/format';
 
 export const ItemManagement = () => {
-  const { data, saveItem, deleteItem, adjustStock, saveRecipe, deleteRecipe, getRecipeForProduct, showConfirmDialog, isLoading } = useApp();
+  const { data, saveItem, deleteItem, adjustStock, saveRecipe, deleteRecipe, showConfirmDialog, isLoading } = useApp();
   const [activeTab, setActiveTab] = useState('stock'); // 'stock', 'products', 'materials', 'categories', 'recipes'
   const [modalOpen, setModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
@@ -88,7 +84,7 @@ export const ItemManagement = () => {
   };
 
   const currency = data?.settings?.currencySymbol || '₹';
-  const fmt = (val) => `${currency} ${Number(val || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const fmt = (val) => formatMoney(val, currency);
 
   // Unified Inventory: Combines Menu Items (Products) and Raw Materials
   const unifiedStock = useMemo(() => {

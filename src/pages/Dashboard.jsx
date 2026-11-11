@@ -1,5 +1,4 @@
 import { useApp } from '../context/AppContext';
-import { useAuth } from '../context/AuthContext';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
@@ -24,15 +23,15 @@ import {
   CheckCircle2,
   Calendar
 } from 'lucide-react';
+import { formatMoney } from '../utils/format';
 
 export const Dashboard = () => {
   const { metrics, data, refreshData, isSyncing } = useApp();
-  const { currentUser } = useAuth();
   const navigate = useNavigate();
   const currency = data?.settings?.currencySymbol || '₹';
   const appLogo = data?.settings?.logo || '/logo.jpg';
 
-  const fmt = (num) => `${currency} ${Number(num || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const fmt = (num) => formatMoney(num, currency);
 
   // Today's Live Date
   const todayStr = new Date().toISOString().split('T')[0];

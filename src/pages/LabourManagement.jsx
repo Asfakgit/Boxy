@@ -9,7 +9,6 @@ import { useNavigate } from 'react-router-dom';
 import {
   calculateLabourSummary,
   fmtCurrency,
-  formatDate,
   isWithinDateRange
 } from '../utils/partnerLabourUtils';
 import { exportLabourStatementPDF } from '../utils/pdfExportUtils';
@@ -25,9 +24,7 @@ import {
   Download,
   Edit2,
   Trash2,
-  UserCheck,
   CreditCard,
-  Building2,
   ArrowRight,
   TrendingUp,
   Percent
@@ -262,7 +259,6 @@ export const LabourManagement = () => {
     exportLabourStatementPDF({
       labourer,
       payments: labourer.paymentsList || [],
-      attendance: labourer.attendanceList || [],
       dateRange: { startDate, endDate },
       settings: data?.settings || {},
       currency

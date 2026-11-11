@@ -35,41 +35,51 @@ const formatDate = (dateStr) => {
 
 /**
  * =========================================================================
- * 1. BALANCE SHEET PDF EXPORT
+ * SHARED LAYOUT HELPERS
  * =========================================================================
  */
-export const exportBalanceSheetPDF = ({
-  balanceSheetData,
-  asOfDate,
-  settings = {},
-  currency = '₹'
+
+const generatedDate = () => `Generated: ${new Date().toLocaleDateString('en-GB')}`;
+const todayIso = () => new Date().toISOString().split('T')[0];
+
+/** Creates an A4 portrait document plus the layout context shared by all helpers. */
+const createPdfDoc = (currency) => {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  return {
+    doc,
+    pageWidth: doc.internal.pageSize.getWidth(),
+    pageHeight: doc.internal.pageSize.getHeight(),
+    margin: 14,
+    fmt: (v) => formatCurrencyForPdf(v, currency)
+  };
+};
+
+/**
+ * Dark slate header banner: company name + tagline on the left, a title and
+ * subtitle lines right-aligned. `offsets` are relative to the banner top.
+ */
+const drawHeaderBanner = (ctx, y, {
+  settings,
+  defaultTagline,
+  title,
+  lines = [],
+  titleSize = 11,
+  offsets = { name: 10, tagline: 16, title: 10, lines: [17, 22] },
+  withLogo = false
 }) => {
-  const doc = new jsPDF({
-    orientation: 'portrait',
-    unit: 'mm',
-    format: 'a4'
-  });
-
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
-  const margin = 14;
-  let currentY = 16;
-
+  const { doc, pageWidth, margin } = ctx;
   const companyName = (settings.companyName || 'BOXY CLOUD KITCHEN').toUpperCase();
-  const tagline = settings.tagline || 'Cloud Kitchen Operations & Financial Intelligence';
-  const fmt = (v) => formatCurrencyForPdf(v, currency);
+  const tagline = settings.tagline || defaultTagline;
 
-  // 1. Header Banner
   doc.setFillColor(30, 41, 59); // Slate-800
-  doc.roundedRect(margin, currentY, pageWidth - margin * 2, 28, 3, 3, 'F');
+  doc.roundedRect(margin, y, pageWidth - margin * 2, 28, 3, 3, 'F');
 
-  // Draw Logo if provided
   let textStartX = margin + 8;
   const logo = settings?.logo;
-  if (logo && typeof logo === 'string' && logo.startsWith('data:image')) {
+  if (withLogo && logo && typeof logo === 'string' && logo.startsWith('data:image')) {
     try {
       const imgType = logo.includes('png') ? 'PNG' : 'JPEG';
-      doc.addImage(logo, imgType, margin + 4, currentY + 4, 20, 20);
+      doc.addImage(logo, imgType, margin + 4, y + 4, 20, 20);
       textStartX = margin + 28;
     } catch (err) {
       console.warn('PDF Logo render skipped:', err);
@@ -79,54 +89,252 @@ export const exportBalanceSheetPDF = ({
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(15);
-  doc.text(companyName, textStartX, currentY + 11);
+  doc.text(companyName, textStartX, y + offsets.name);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(203, 213, 225); // Slate-300
-  doc.text(tagline, textStartX, currentY + 18);
+  doc.text(tagline, textStartX, y + offsets.tagline);
 
-  // Document Badge on right
+  // Document badge on right
+  const rightX = pageWidth - margin - 8;
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
+  doc.setFontSize(titleSize);
   doc.setTextColor(255, 255, 255);
-  doc.text('BALANCE SHEET', pageWidth - margin - 8, currentY + 11, { align: 'right' });
+  doc.text(title, rightX, y + offsets.title, { align: 'right' });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(148, 163, 184);
-  doc.text(`As of: ${formatDate(asOfDate)}`, pageWidth - margin - 8, currentY + 18, { align: 'right' });
-  doc.text(`Generated: ${new Date().toLocaleDateString('en-GB')} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`, pageWidth - margin - 8, currentY + 23, { align: 'right' });
+  lines.forEach((line, i) => {
+    doc.text(line, rightX, y + offsets.lines[i], { align: 'right' });
+  });
 
-  currentY += 34;
+  return y + 34;
+};
 
-  // 2. Executive Financial Summary Cards
+/** Row of 4 tinted summary cards (label + value). Returns the Y below the row. */
+const drawSummaryCards = (ctx, y, cards, { height = 16, labelY = 5, valueY = 11.5, valueSize = 9 } = {}) => {
+  const { doc, pageWidth, margin } = ctx;
   const cardWidth = (pageWidth - margin * 2 - 9) / 4;
-  const cards = [
-    { label: 'TOTAL ASSETS', value: fmt(balanceSheetData.totalAssets), bg: [238, 242, 255], border: [99, 102, 241], text: [49, 46, 129] },
-    { label: 'TOTAL LIABILITIES', value: fmt(balanceSheetData.totalLiabilities), bg: [254, 242, 242], border: [239, 68, 68], text: [153, 27, 27] },
-    { label: 'TOTAL EQUITY', value: fmt(balanceSheetData.totalEquity), bg: [240, 253, 244], border: [34, 197, 94], text: [22, 101, 52] },
-    { label: 'LIABILITIES + EQUITY', value: fmt(balanceSheetData.totalLiabAndEquity), bg: [248, 250, 252], border: [148, 163, 184], text: [15, 23, 42] }
-  ];
 
   cards.forEach((card, idx) => {
     const x = margin + idx * (cardWidth + 3);
     doc.setFillColor(...card.bg);
     doc.setDrawColor(...card.border);
     doc.setLineWidth(0.3);
-    doc.roundedRect(x, currentY, cardWidth, 18, 2, 2, 'FD');
+    doc.roundedRect(x, y, cardWidth, height, 2, 2, 'FD');
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(6.5);
     doc.setTextColor(100, 116, 139);
-    doc.text(card.label, x + cardWidth / 2, currentY + 5.5, { align: 'center' });
+    doc.text(card.label, x + cardWidth / 2, y + labelY, { align: 'center' });
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9.5);
+    doc.setFontSize(valueSize);
     doc.setTextColor(...card.text);
-    doc.text(card.value, x + cardWidth / 2, currentY + 13, { align: 'center' });
+    doc.text(card.value, x + cardWidth / 2, y + valueY, { align: 'center' });
   });
 
-  currentY += 23;
+  return y + height + 5;
+};
+
+/** Light grey profile box with a bold title and detail lines underneath. */
+const drawProfileBox = (ctx, y, height, title, lines, {
+  titleSize = 9.5,
+  titleY = 7,
+  textColor = [71, 85, 105],
+  lineYs = [13, 18]
+} = {}) => {
+  const { doc, pageWidth, margin } = ctx;
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(margin, y, pageWidth - margin * 2, height, 2, 2, 'FD');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(titleSize);
+  doc.setTextColor(15, 23, 42);
+  doc.text(title, margin + 6, y + titleY);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(...textColor);
+  lines.forEach((line, i) => doc.text(line, margin + 6, y + lineYs[i]));
+};
+
+/** Base table styling shared by the report tables (fresh objects per call). */
+const baseTableStyles = (lineWidth = 0.15) => ({
+  styles: {
+    fontSize: 7.5,
+    cellPadding: 2.2,
+    textColor: [30, 41, 59],
+    lineColor: [226, 232, 240],
+    lineWidth
+  },
+  headStyles: {
+    fillColor: [30, 41, 59],
+    textColor: [255, 255, 255],
+    fontStyle: 'bold',
+    halign: 'left'
+  }
+});
+
+/** Full-width striped grid table used by most reports. */
+const drawGridTable = (ctx, startY, head, body, columnStyles) => {
+  autoTable(ctx.doc, {
+    startY,
+    margin: { left: ctx.margin, right: ctx.margin },
+    head,
+    body,
+    theme: 'grid',
+    ...baseTableStyles(),
+    ...(columnStyles && { columnStyles }),
+    alternateRowStyles: { fillColor: [248, 250, 252] }
+  });
+};
+
+/** Footer line at the page bottom with either a page label or a signatory label. */
+const drawFooter = (ctx, text, { offset = 14, fontSize = 7, signatory = false } = {}) => {
+  const { doc, pageWidth, pageHeight, margin } = ctx;
+  const footY = pageHeight - offset;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(fontSize);
+  doc.setTextColor(148, 163, 184);
+  doc.text(text, margin, footY);
+  if (signatory) {
+    doc.text('Authorized Signatory', pageWidth - margin - 35, footY);
+  } else {
+    doc.text('Page 1 of 1', pageWidth - margin, footY, { align: 'right' });
+  }
+};
+
+/** Bold "TOTALS"-style row cell. */
+const boldCell = (content, textColor) => ({
+  content,
+  styles: textColor ? { fontStyle: 'bold', textColor } : { fontStyle: 'bold' }
+});
+
+// Shared card colour palettes
+const PALETTE = {
+  slate: { bg: [248, 250, 252], border: [203, 213, 225], text: [71, 85, 105] },
+  indigo: { bg: [238, 242, 255], border: [99, 102, 241], text: [49, 46, 129] },
+  green: { bg: [240, 253, 244], border: [34, 197, 94], text: [22, 101, 52] },
+  red: { bg: [254, 242, 242], border: [239, 68, 68], text: [153, 27, 27] },
+  amber: { bg: [255, 251, 235], border: [245, 158, 11], text: [180, 83, 9] }
+};
+const card = (label, value, palette) => ({ label, value, ...PALETTE[palette] });
+
+/* ---- Partner / Labour statement helpers (deep-dark "portal" layout) ---- */
+
+const drawStatementHeader = (ctx, { accentColor, title, settings, dateRange }) => {
+  const { doc, pageWidth, margin } = ctx;
+  const contentWidth = pageWidth - margin * 2;
+
+  // Top Accent Bar
+  doc.setFillColor(...accentColor);
+  doc.rect(0, 0, pageWidth, 4, 'F');
+
+  // Header Box
+  doc.setFillColor(15, 23, 42); // Pure deep dark
+  doc.roundedRect(margin, 10, contentWidth, 32, 3, 3, 'F');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.setTextColor(255, 255, 255);
+  doc.text(String(settings.companyName || 'BOXY CLOUD KITCHEN').toUpperCase(), margin + 8, 22);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(148, 163, 184);
+  doc.text(title, margin + 8, 29);
+  doc.text(`Period: ${dateRange.startDate || 'Beginning'} to ${dateRange.endDate || 'Present'}`, margin + 8, 35);
+
+  return 48;
+};
+
+const drawMetricBlocks = (ctx, y, metrics, colW) => {
+  const { doc, margin } = ctx;
+  metrics.forEach((m, idx) => {
+    const x = margin + idx * (colW + 2);
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(226, 232, 240);
+    doc.roundedRect(x, y, colW, 18, 2, 2, 'FD');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text(m.label, x + 4, y + 6);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(...m.color);
+    doc.text(m.val, x + 4, y + 13);
+  });
+  return y + 24;
+};
+
+/** Section title followed by a compact history table. */
+const drawStatementTable = (ctx, y, sectionTitle, head, body, amountColor) => {
+  const { doc, margin } = ctx;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(15, 23, 42);
+  doc.text(sectionTitle, margin, y);
+
+  autoTable(doc, {
+    startY: y + 4,
+    margin: { left: margin, right: margin },
+    head,
+    body,
+    theme: 'grid',
+    styles: { fontSize: 8, cellPadding: 2.5, textColor: [30, 41, 59] },
+    headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold' },
+    columnStyles: { 4: { halign: 'right', fontStyle: 'bold', textColor: amountColor } }
+  });
+};
+
+const drawPortalFooter = (ctx, portalName) => {
+  drawFooter(ctx, `Generated on ${new Date().toLocaleString('en-GB')}  •  Boxy ERP ${portalName}`, { offset: 12, fontSize: 7.5 });
+};
+
+const saveDoc = (doc, fileName) => {
+  doc.save(fileName);
+  return fileName;
+};
+
+/**
+ * =========================================================================
+ * 1. BALANCE SHEET PDF EXPORT
+ * =========================================================================
+ */
+export const exportBalanceSheetPDF = ({
+  balanceSheetData,
+  asOfDate,
+  settings = {},
+  currency = '₹'
+}) => {
+  const ctx = createPdfDoc(currency);
+  const { doc, pageWidth, margin, fmt } = ctx;
+
+  // 1. Header Banner (with optional logo)
+  let currentY = drawHeaderBanner(ctx, 16, {
+    settings,
+    defaultTagline: 'Cloud Kitchen Operations & Financial Intelligence',
+    title: 'BALANCE SHEET',
+    lines: [
+      `As of: ${formatDate(asOfDate)}`,
+      `Generated: ${new Date().toLocaleDateString('en-GB')} ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+    ],
+    offsets: { name: 11, tagline: 18, title: 11, lines: [18, 23] },
+    withLogo: true
+  });
+
+  // 2. Executive Financial Summary Cards
+  currentY = drawSummaryCards(ctx, currentY, [
+    card('TOTAL ASSETS', fmt(balanceSheetData.totalAssets), 'indigo'),
+    card('TOTAL LIABILITIES', fmt(balanceSheetData.totalLiabilities), 'red'),
+    card('TOTAL EQUITY', fmt(balanceSheetData.totalEquity), 'green'),
+    { label: 'LIABILITIES + EQUITY', value: fmt(balanceSheetData.totalLiabAndEquity), bg: [248, 250, 252], border: [148, 163, 184], text: [15, 23, 42] }
+  ], { height: 18, labelY: 5.5, valueY: 13, valueSize: 9.5 });
 
   // Audit Validation Pill
   const isBalanced = Math.abs(balanceSheetData.totalAssets - balanceSheetData.totalLiabAndEquity) < 0.05;
@@ -146,10 +354,14 @@ export const exportBalanceSheetPDF = ({
 
   // 3. Side-by-Side Tables: Assets on Left, Liabilities & Equity on Right
   const halfTableWidth = (pageWidth - margin * 2 - 6) / 2;
+  const sectionRow = (label) => [{ content: label, colSpan: 2, styles: { fontStyle: 'bold', fillColor: [241, 245, 249], textColor: [30, 41, 59] } }];
+  const totalRow = (label, value, fillColor, textColor) => [
+    { content: label, styles: { fontStyle: 'bold', fillColor, textColor } },
+    { content: value, styles: { fontStyle: 'bold', fillColor, textColor } }
+  ];
 
-  // ASSETS ROWS (100% Real Operational Data)
   const assetRows = [
-    [{ content: 'OPERATIONAL ASSETS', colSpan: 2, styles: { fontStyle: 'bold', fillColor: [241, 245, 249], textColor: [30, 41, 59] } }],
+    sectionRow('OPERATIONAL ASSETS'),
     ['Cash in Hand (Physical Register)', fmt(balanceSheetData.assets.cashInHand)],
     ['Bank & Digital Accounts (UPI / Cards)', fmt(balanceSheetData.assets.bankBalances)],
     ['Total Cash & Cash Equivalents', fmt(balanceSheetData.assets.totalCash)],
@@ -157,84 +369,47 @@ export const exportBalanceSheetPDF = ({
     ['Inventory - Finished Products', fmt(balanceSheetData.assets.productsInventory)],
     ['Inventory - Kitchen Raw Materials', fmt(balanceSheetData.assets.rawMaterialsInventory)],
     ['Total Inventory at Cost', fmt(balanceSheetData.assets.totalInventory)],
-    [{ content: 'TOTAL ASSETS', styles: { fontStyle: 'bold', fillColor: [224, 231, 255], textColor: [49, 46, 129] } }, { content: fmt(balanceSheetData.totalAssets), styles: { fontStyle: 'bold', fillColor: [224, 231, 255], textColor: [49, 46, 129] } }]
+    totalRow('TOTAL ASSETS', fmt(balanceSheetData.totalAssets), [224, 231, 255], [49, 46, 129])
   ];
 
-  // LIABILITIES & EQUITY ROWS (100% Real Operational Data)
   const liabRows = [
-    [{ content: 'CURRENT LIABILITIES', colSpan: 2, styles: { fontStyle: 'bold', fillColor: [241, 245, 249], textColor: [30, 41, 59] } }],
+    sectionRow('CURRENT LIABILITIES'),
     ['Accounts Payable (Supplier Due)', fmt(balanceSheetData.liabilities.accountsPayable)],
     ['Salaries & Wages Payable', fmt(balanceSheetData.liabilities.salariesPayable || 0)],
     ['Taxes & GST Payable', fmt(balanceSheetData.liabilities.taxPayable)],
-    [{ content: 'TOTAL LIABILITIES', styles: { fontStyle: 'bold', fillColor: [254, 226, 226], textColor: [153, 27, 27] } }, { content: fmt(balanceSheetData.totalLiabilities), styles: { fontStyle: 'bold', fillColor: [254, 226, 226], textColor: [153, 27, 27] } }],
-    [{ content: 'PARTNERS EQUITY & PROFIT SHARE', colSpan: 2, styles: { fontStyle: 'bold', fillColor: [241, 245, 249], textColor: [30, 41, 59] } }],
+    totalRow('TOTAL LIABILITIES', fmt(balanceSheetData.totalLiabilities), [254, 226, 226], [153, 27, 27]),
+    sectionRow('PARTNERS EQUITY & PROFIT SHARE'),
     ...(balanceSheetData.equity.partnersEquity || []).map(p => [`${p.name} Balance (${p.percentage}%)`, fmt(p.balance)]),
     ['Retained Earnings (Accumulated Net Profit)', fmt(balanceSheetData.equity.retainedEarnings)],
-    ["Total Net Business Equity", fmt(balanceSheetData.equity.totalEquity)],
-    [{ content: 'TOTAL LIABILITIES & EQUITY', styles: { fontStyle: 'bold', fillColor: [241, 245, 249], textColor: [15, 23, 42] } }, { content: fmt(balanceSheetData.totalLiabAndEquity), styles: { fontStyle: 'bold', fillColor: [241, 245, 249], textColor: [15, 23, 42] } }]
+    ['Total Net Business Equity', fmt(balanceSheetData.equity.totalEquity)],
+    totalRow('TOTAL LIABILITIES & EQUITY', fmt(balanceSheetData.totalLiabAndEquity), [241, 245, 249], [15, 23, 42])
   ];
 
-  // Render Assets Table
-  autoTable(doc, {
+  const drawHalfTable = (left, headLabel, body) => autoTable(doc, {
     startY: currentY,
-    margin: { left: margin },
+    margin: { left },
     tableWidth: halfTableWidth,
-    head: [['ASSETS (Breakdown)', 'AMOUNT']],
-    body: assetRows,
+    head: [[headLabel, 'AMOUNT']],
+    body,
     theme: 'plain',
-    styles: {
-      fontSize: 7.5,
-      cellPadding: 2.2,
-      textColor: [30, 41, 59],
-      lineColor: [226, 232, 240],
-      lineWidth: 0.2
-    },
-    headStyles: {
-      fillColor: [30, 41, 59],
-      textColor: [255, 255, 255],
-      fontStyle: 'bold',
-      halign: 'left'
-    },
+    ...baseTableStyles(0.2),
     columnStyles: {
       0: { cellWidth: halfTableWidth * 0.65 },
       1: { cellWidth: halfTableWidth * 0.35, halign: 'right', fontStyle: 'bold' }
     }
   });
 
-  // Render Liabilities Table
-  autoTable(doc, {
-    startY: currentY,
-    margin: { left: margin + halfTableWidth + 6 },
-    tableWidth: halfTableWidth,
-    head: [['LIABILITIES & EQUITY', 'AMOUNT']],
-    body: liabRows,
-    theme: 'plain',
-    styles: {
-      fontSize: 7.5,
-      cellPadding: 2.2,
-      textColor: [30, 41, 59],
-      lineColor: [226, 232, 240],
-      lineWidth: 0.2
-    },
-    headStyles: {
-      fillColor: [30, 41, 59],
-      textColor: [255, 255, 255],
-      fontStyle: 'bold',
-      halign: 'left'
-    },
-    columnStyles: {
-      0: { cellWidth: halfTableWidth * 0.65 },
-      1: { cellWidth: halfTableWidth * 0.35, halign: 'right', fontStyle: 'bold' }
-    }
-  });
+  drawHalfTable(margin, 'ASSETS (Breakdown)', assetRows);
+  drawHalfTable(margin + halfTableWidth + 6, 'LIABILITIES & EQUITY', liabRows);
 
   const finalY = doc.lastAutoTable.finalY + 8;
 
   // 4. Financial Health Key Ratios
+  const { assets, liabilities } = balanceSheetData;
   const ratios = [
-    { name: 'Working Capital', val: fmt(balanceSheetData.assets.totalCurrentAssets - balanceSheetData.liabilities.totalCurrentLiabilities) },
-    { name: 'Current Ratio', val: balanceSheetData.liabilities.totalCurrentLiabilities > 0 ? (balanceSheetData.assets.totalCurrentAssets / balanceSheetData.liabilities.totalCurrentLiabilities).toFixed(2) + 'x' : 'N/A' },
-    { name: 'Quick Ratio', val: balanceSheetData.liabilities.totalCurrentLiabilities > 0 ? ((balanceSheetData.assets.totalCash + balanceSheetData.assets.accountsReceivable) / balanceSheetData.liabilities.totalCurrentLiabilities).toFixed(2) + 'x' : 'N/A' },
+    { name: 'Working Capital', val: fmt(assets.totalCurrentAssets - liabilities.totalCurrentLiabilities) },
+    { name: 'Current Ratio', val: liabilities.totalCurrentLiabilities > 0 ? (assets.totalCurrentAssets / liabilities.totalCurrentLiabilities).toFixed(2) + 'x' : 'N/A' },
+    { name: 'Quick Ratio', val: liabilities.totalCurrentLiabilities > 0 ? ((assets.totalCash + assets.accountsReceivable) / liabilities.totalCurrentLiabilities).toFixed(2) + 'x' : 'N/A' },
     { name: 'Debt-to-Equity', val: balanceSheetData.totalEquity > 0 ? (balanceSheetData.totalLiabilities / balanceSheetData.totalEquity).toFixed(2) + 'x' : 'N/A' }
   ];
 
@@ -259,18 +434,9 @@ export const exportBalanceSheetPDF = ({
     doc.text(r.val, rx + doc.getTextWidth(`${r.name}: `) + 1, finalY + 8.5);
   });
 
-  // Footer & Signature Area
-  const footY = pageHeight - 18;
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  doc.setTextColor(148, 163, 184);
-  doc.text('This is an official computer-generated financial document. Certified accurate by Boxy Cloud Kitchen Accounting.', margin, footY);
-  doc.text(`Page 1 of 1`, pageWidth - margin, footY, { align: 'right' });
+  drawFooter(ctx, 'This is an official computer-generated financial document. Certified accurate by Boxy Cloud Kitchen Accounting.', { offset: 18 });
 
-  // Save / Trigger Download
-  const fileName = `${(settings.companyName || 'Boxy').replace(/\s+/g, '_')}_Balance_Sheet_${asOfDate}.pdf`;
-  doc.save(fileName);
-  return fileName;
+  return saveDoc(doc, `${(settings.companyName || 'Boxy').replace(/\s+/g, '_')}_Balance_Sheet_${asOfDate}.pdf`);
 };
 
 /**
@@ -286,113 +452,33 @@ export const exportCustomerLedgerPDF = ({
   settings = {},
   currency = '₹'
 }) => {
-  const doc = new jsPDF({
-    orientation: 'portrait',
-    unit: 'mm',
-    format: 'a4'
+  const ctx = createPdfDoc(currency);
+  const { fmt } = ctx;
+
+  let currentY = drawHeaderBanner(ctx, 16, {
+    settings,
+    defaultTagline: 'Cloud Kitchen Operations & POS',
+    title: 'CUSTOMER STATEMENT',
+    lines: [`Period: ${formatDate(dateRange.startDate)} to ${formatDate(dateRange.endDate)}`, generatedDate()]
   });
-
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
-  const margin = 14;
-  let currentY = 16;
-
-  const companyName = (settings.companyName || 'BOXY CLOUD KITCHEN').toUpperCase();
-  const tagline = settings.tagline || 'Cloud Kitchen Operations & POS';
-  const fmt = (v) => formatCurrencyForPdf(v, currency);
-
-  // Header Banner
-  doc.setFillColor(30, 41, 59);
-  doc.roundedRect(margin, currentY, pageWidth - margin * 2, 28, 3, 3, 'F');
-
-  doc.setTextColor(255, 255, 255);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(15);
-  doc.text(companyName, margin + 8, currentY + 10);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(203, 213, 225);
-  doc.text(tagline, margin + 8, currentY + 16);
-
-  // Document Badge on right
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
-  doc.setTextColor(255, 255, 255);
-  doc.text('CUSTOMER STATEMENT', pageWidth - margin - 8, currentY + 10, { align: 'right' });
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(148, 163, 184);
-  doc.text(`Period: ${formatDate(dateRange.startDate)} to ${formatDate(dateRange.endDate)}`, pageWidth - margin - 8, currentY + 17, { align: 'right' });
-  doc.text(`Generated: ${new Date().toLocaleDateString('en-GB')}`, pageWidth - margin - 8, currentY + 22, { align: 'right' });
-
-  currentY += 34;
 
   // Customer Profile Information Box
-  doc.setFillColor(248, 250, 252);
-  doc.setDrawColor(226, 232, 240);
-  doc.roundedRect(margin, currentY, pageWidth - margin * 2, 22, 2, 2, 'FD');
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.5);
-  doc.setTextColor(15, 23, 42);
-  doc.text(customer.shopName ? `${customer.shopName} (${customer.name})` : customer.name, margin + 6, currentY + 7);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(71, 85, 105);
-  doc.text(`Phone: ${customer.phone || 'N/A'}  |  Category: ${customer.customerType || 'Retail'}  |  Address: ${customer.address || 'N/A'}`, margin + 6, currentY + 13);
-  doc.text(`Credit Limit: ${fmt(customer.creditLimit || 0)}  |  Available Credit: ${fmt(Math.max(0, (customer.creditLimit || 0) - (summary.closingBalance || 0)))}`, margin + 6, currentY + 18);
-
+  drawProfileBox(ctx, currentY, 22, customer.shopName ? `${customer.shopName} (${customer.name})` : customer.name, [
+    `Phone: ${customer.phone || 'N/A'}  |  Category: ${customer.customerType || 'Retail'}  |  Address: ${customer.address || 'N/A'}`,
+    `Credit Limit: ${fmt(customer.creditLimit || 0)}  |  Available Credit: ${fmt(Math.max(0, (customer.creditLimit || 0) - (summary.closingBalance || 0)))}`
+  ]);
   currentY += 27;
 
-  // Summary Metrics Banner
-  const cardWidth = (pageWidth - margin * 2 - 9) / 4;
-  const cards = [
-    { label: 'OPENING BALANCE', value: fmt(summary.openingBalance), bg: [248, 250, 252], border: [203, 213, 225], text: [71, 85, 105] },
-    { label: 'TOTAL INVOICED (+)', value: fmt(summary.totalInvoiced), bg: [238, 242, 255], border: [99, 102, 241], text: [49, 46, 129] },
-    { label: 'TOTAL PAID (-)', value: fmt(summary.totalPaid), bg: [240, 253, 244], border: [34, 197, 94], text: [22, 101, 52] },
-    { label: 'CLOSING BALANCE DUE', value: fmt(summary.closingBalance), bg: [254, 242, 242], border: [239, 68, 68], text: [153, 27, 27] }
-  ];
-
-  cards.forEach((card, idx) => {
-    const x = margin + idx * (cardWidth + 3);
-    doc.setFillColor(...card.bg);
-    doc.setDrawColor(...card.border);
-    doc.setLineWidth(0.3);
-    doc.roundedRect(x, currentY, cardWidth, 16, 2, 2, 'FD');
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(6.5);
-    doc.setTextColor(100, 116, 139);
-    doc.text(card.label, x + cardWidth / 2, currentY + 5, { align: 'center' });
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.setTextColor(...card.text);
-    doc.text(card.value, x + cardWidth / 2, currentY + 11.5, { align: 'center' });
-  });
-
-  currentY += 21;
-
-  // Table Data
-  const tableRows = [];
-
-  // Opening Balance Row
-  tableRows.push([
-    formatDate(dateRange.startDate),
-    '—',
-    'OPENING',
-    'Balance brought forward from previous periods',
-    '—',
-    '—',
-    '—',
-    fmt(summary.openingBalance)
+  currentY = drawSummaryCards(ctx, currentY, [
+    card('OPENING BALANCE', fmt(summary.openingBalance), 'slate'),
+    card('TOTAL INVOICED (+)', fmt(summary.totalInvoiced), 'indigo'),
+    card('TOTAL PAID (-)', fmt(summary.totalPaid), 'green'),
+    card('CLOSING BALANCE DUE', fmt(summary.closingBalance), 'red')
   ]);
 
-  // Transactions
-  transactions.forEach(t => {
-    tableRows.push([
+  const tableRows = [
+    [formatDate(dateRange.startDate), '—', 'OPENING', 'Balance brought forward from previous periods', '—', '—', '—', fmt(summary.openingBalance)],
+    ...transactions.map(t => [
       formatDate(t.date),
       t.reference || t.id || '—',
       t.type || 'Transaction',
@@ -401,67 +487,34 @@ export const exportCustomerLedgerPDF = ({
       t.debit > 0 ? fmt(t.debit) : '—',
       t.credit > 0 ? fmt(t.credit) : '—',
       fmt(t.runningBalance)
-    ]);
+    ]),
+    [
+      boldCell(formatDate(dateRange.endDate)),
+      boldCell('TOTALS'),
+      boldCell('CLOSING'),
+      boldCell(`Statement Closing Position for ${customer.name}`),
+      boldCell('—'),
+      boldCell(fmt(summary.totalInvoiced), [49, 46, 129]),
+      boldCell(fmt(summary.totalPaid), [22, 101, 52]),
+      boldCell(fmt(summary.closingBalance), [153, 27, 27])
+    ]
+  ];
+
+  drawGridTable(ctx, currentY, [['DATE', 'REF #', 'TYPE', 'DESCRIPTION / ITEMS', 'METHOD', 'DEBIT (+)', 'CREDIT (-)', 'BALANCE']], tableRows, {
+    0: { cellWidth: 20 },
+    1: { cellWidth: 22, fontStyle: 'bold' },
+    2: { cellWidth: 18 },
+    3: { cellWidth: 'auto' },
+    4: { cellWidth: 18 },
+    5: { cellWidth: 22, halign: 'right' },
+    6: { cellWidth: 22, halign: 'right' },
+    7: { cellWidth: 24, halign: 'right', fontStyle: 'bold' }
   });
 
-  // Closing Balance Row
-  tableRows.push([
-    { content: formatDate(dateRange.endDate), styles: { fontStyle: 'bold' } },
-    { content: 'TOTALS', styles: { fontStyle: 'bold' } },
-    { content: 'CLOSING', styles: { fontStyle: 'bold' } },
-    { content: `Statement Closing Position for ${customer.name}`, styles: { fontStyle: 'bold' } },
-    { content: '—', styles: { fontStyle: 'bold' } },
-    { content: fmt(summary.totalInvoiced), styles: { fontStyle: 'bold', textColor: [49, 46, 129] } },
-    { content: fmt(summary.totalPaid), styles: { fontStyle: 'bold', textColor: [22, 101, 52] } },
-    { content: fmt(summary.closingBalance), styles: { fontStyle: 'bold', textColor: [153, 27, 27] } }
-  ]);
-
-  autoTable(doc, {
-    startY: currentY,
-    margin: { left: margin, right: margin },
-    head: [['DATE', 'REF #', 'TYPE', 'DESCRIPTION / ITEMS', 'METHOD', 'DEBIT (+)', 'CREDIT (-)', 'BALANCE']],
-    body: tableRows,
-    theme: 'grid',
-    styles: {
-      fontSize: 7.5,
-      cellPadding: 2.2,
-      textColor: [30, 41, 59],
-      lineColor: [226, 232, 240],
-      lineWidth: 0.15
-    },
-    headStyles: {
-      fillColor: [30, 41, 59],
-      textColor: [255, 255, 255],
-      fontStyle: 'bold',
-      halign: 'left'
-    },
-    columnStyles: {
-      0: { cellWidth: 20 },
-      1: { cellWidth: 22, fontStyle: 'bold' },
-      2: { cellWidth: 18 },
-      3: { cellWidth: 'auto' },
-      4: { cellWidth: 18 },
-      5: { cellWidth: 22, halign: 'right' },
-      6: { cellWidth: 22, halign: 'right' },
-      7: { cellWidth: 24, halign: 'right', fontStyle: 'bold' }
-    },
-    alternateRowStyles: {
-      fillColor: [248, 250, 252]
-    }
-  });
-
-  // Footer & Signature Area
-  const footY = pageHeight - 16;
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  doc.setTextColor(148, 163, 184);
-  doc.text('Computer-generated Customer Statement. For questions or disputes, contact accounts at ' + (settings.companyName || 'Boxy'), margin, footY);
-  doc.text(`Authorized Signatory`, pageWidth - margin - 35, footY);
+  drawFooter(ctx, 'Computer-generated Customer Statement. For questions or disputes, contact accounts at ' + (settings.companyName || 'Boxy'), { offset: 16, signatory: true });
 
   const cleanName = (customer.name || 'Customer').replace(/[^a-zA-Z0-9]/g, '_');
-  const fileName = `Customer_Ledger_${cleanName}_${dateRange.startDate}_to_${dateRange.endDate}.pdf`;
-  doc.save(fileName);
-  return fileName;
+  return saveDoc(ctx.doc, `Customer_Ledger_${cleanName}_${dateRange.startDate}_to_${dateRange.endDate}.pdf`);
 };
 
 /**
@@ -477,112 +530,32 @@ export const exportSupplierLedgerPDF = ({
   settings = {},
   currency = '₹'
 }) => {
-  const doc = new jsPDF({
-    orientation: 'portrait',
-    unit: 'mm',
-    format: 'a4'
+  const ctx = createPdfDoc(currency);
+  const { fmt } = ctx;
+
+  let currentY = drawHeaderBanner(ctx, 16, {
+    settings,
+    defaultTagline: 'Cloud Kitchen Operations & POS',
+    title: 'SUPPLIER STATEMENT',
+    lines: [`Period: ${formatDate(dateRange.startDate)} to ${formatDate(dateRange.endDate)}`, generatedDate()]
   });
-
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
-  const margin = 14;
-  let currentY = 16;
-
-  const companyName = (settings.companyName || 'BOXY CLOUD KITCHEN').toUpperCase();
-  const tagline = settings.tagline || 'Cloud Kitchen Operations & POS';
-  const fmt = (v) => formatCurrencyForPdf(v, currency);
-
-  // Header Banner
-  doc.setFillColor(30, 41, 59);
-  doc.roundedRect(margin, currentY, pageWidth - margin * 2, 28, 3, 3, 'F');
-
-  doc.setTextColor(255, 255, 255);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(15);
-  doc.text(companyName, margin + 8, currentY + 10);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(203, 213, 225);
-  doc.text(tagline, margin + 8, currentY + 16);
-
-  // Document Badge on right
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
-  doc.setTextColor(255, 255, 255);
-  doc.text('SUPPLIER STATEMENT', pageWidth - margin - 8, currentY + 10, { align: 'right' });
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(148, 163, 184);
-  doc.text(`Period: ${formatDate(dateRange.startDate)} to ${formatDate(dateRange.endDate)}`, pageWidth - margin - 8, currentY + 17, { align: 'right' });
-  doc.text(`Generated: ${new Date().toLocaleDateString('en-GB')}`, pageWidth - margin - 8, currentY + 22, { align: 'right' });
-
-  currentY += 34;
 
   // Supplier Profile Information Box
-  doc.setFillColor(248, 250, 252);
-  doc.setDrawColor(226, 232, 240);
-  doc.roundedRect(margin, currentY, pageWidth - margin * 2, 20, 2, 2, 'FD');
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.5);
-  doc.setTextColor(15, 23, 42);
-  doc.text(supplier.name, margin + 6, currentY + 7);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(71, 85, 105);
-  doc.text(`Phone: ${supplier.phone || 'N/A'}  |  Address: ${supplier.address || 'N/A'}`, margin + 6, currentY + 13);
-
+  drawProfileBox(ctx, currentY, 20, supplier.name, [
+    `Phone: ${supplier.phone || 'N/A'}  |  Address: ${supplier.address || 'N/A'}`
+  ]);
   currentY += 25;
 
-  // Summary Metrics Banner
-  const cardWidth = (pageWidth - margin * 2 - 9) / 4;
-  const cards = [
-    { label: 'OPENING PAYABLE', value: fmt(summary.openingBalance), bg: [248, 250, 252], border: [203, 213, 225], text: [71, 85, 105] },
-    { label: 'TOTAL PURCHASES (+)', value: fmt(summary.totalPurchases), bg: [254, 242, 242], border: [239, 68, 68], text: [153, 27, 27] },
-    { label: 'TOTAL SETTLED (-)', value: fmt(summary.totalPaid), bg: [240, 253, 244], border: [34, 197, 94], text: [22, 101, 52] },
-    { label: 'NET PAYABLE DUE', value: fmt(summary.closingBalance), bg: [255, 251, 235], border: [245, 158, 11], text: [180, 83, 9] }
-  ];
-
-  cards.forEach((card, idx) => {
-    const x = margin + idx * (cardWidth + 3);
-    doc.setFillColor(...card.bg);
-    doc.setDrawColor(...card.border);
-    doc.setLineWidth(0.3);
-    doc.roundedRect(x, currentY, cardWidth, 16, 2, 2, 'FD');
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(6.5);
-    doc.setTextColor(100, 116, 139);
-    doc.text(card.label, x + cardWidth / 2, currentY + 5, { align: 'center' });
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.setTextColor(...card.text);
-    doc.text(card.value, x + cardWidth / 2, currentY + 11.5, { align: 'center' });
-  });
-
-  currentY += 21;
-
-  // Table Data
-  const tableRows = [];
-
-  // Opening Balance Row
-  tableRows.push([
-    formatDate(dateRange.startDate),
-    '—',
-    'OPENING',
-    'Payable balance brought forward from previous periods',
-    '—',
-    '—',
-    '—',
-    fmt(summary.openingBalance)
+  currentY = drawSummaryCards(ctx, currentY, [
+    card('OPENING PAYABLE', fmt(summary.openingBalance), 'slate'),
+    card('TOTAL PURCHASES (+)', fmt(summary.totalPurchases), 'red'),
+    card('TOTAL SETTLED (-)', fmt(summary.totalPaid), 'green'),
+    card('NET PAYABLE DUE', fmt(summary.closingBalance), 'amber')
   ]);
 
-  // Transactions
-  transactions.forEach(t => {
-    tableRows.push([
+  const tableRows = [
+    [formatDate(dateRange.startDate), '—', 'OPENING', 'Payable balance brought forward from previous periods', '—', '—', '—', fmt(summary.openingBalance)],
+    ...transactions.map(t => [
       formatDate(t.date),
       t.reference || t.id || '—',
       t.type || 'Bill / Settlement',
@@ -591,67 +564,34 @@ export const exportSupplierLedgerPDF = ({
       t.purchaseAmount > 0 ? fmt(t.purchaseAmount) : '—',
       t.paidAmount > 0 ? fmt(t.paidAmount) : '—',
       fmt(t.runningBalance)
-    ]);
+    ]),
+    [
+      boldCell(formatDate(dateRange.endDate)),
+      boldCell('TOTALS'),
+      boldCell('CLOSING'),
+      boldCell(`Statement Closing Position for ${supplier.name}`),
+      boldCell('—'),
+      boldCell(fmt(summary.totalPurchases), [153, 27, 27]),
+      boldCell(fmt(summary.totalPaid), [22, 101, 52]),
+      boldCell(fmt(summary.closingBalance), [180, 83, 9])
+    ]
+  ];
+
+  drawGridTable(ctx, currentY, [['DATE', 'PO / REF #', 'TYPE', 'DESCRIPTION / ITEMS', 'METHOD', 'PURCHASE (+)', 'PAYMENT (-)', 'PAYABLE BAL']], tableRows, {
+    0: { cellWidth: 20 },
+    1: { cellWidth: 22, fontStyle: 'bold' },
+    2: { cellWidth: 18 },
+    3: { cellWidth: 'auto' },
+    4: { cellWidth: 18 },
+    5: { cellWidth: 22, halign: 'right' },
+    6: { cellWidth: 22, halign: 'right' },
+    7: { cellWidth: 24, halign: 'right', fontStyle: 'bold' }
   });
 
-  // Closing Balance Row
-  tableRows.push([
-    { content: formatDate(dateRange.endDate), styles: { fontStyle: 'bold' } },
-    { content: 'TOTALS', styles: { fontStyle: 'bold' } },
-    { content: 'CLOSING', styles: { fontStyle: 'bold' } },
-    { content: `Statement Closing Position for ${supplier.name}`, styles: { fontStyle: 'bold' } },
-    { content: '—', styles: { fontStyle: 'bold' } },
-    { content: fmt(summary.totalPurchases), styles: { fontStyle: 'bold', textColor: [153, 27, 27] } },
-    { content: fmt(summary.totalPaid), styles: { fontStyle: 'bold', textColor: [22, 101, 52] } },
-    { content: fmt(summary.closingBalance), styles: { fontStyle: 'bold', textColor: [180, 83, 9] } }
-  ]);
-
-  autoTable(doc, {
-    startY: currentY,
-    margin: { left: margin, right: margin },
-    head: [['DATE', 'PO / REF #', 'TYPE', 'DESCRIPTION / ITEMS', 'METHOD', 'PURCHASE (+)', 'PAYMENT (-)', 'PAYABLE BAL']],
-    body: tableRows,
-    theme: 'grid',
-    styles: {
-      fontSize: 7.5,
-      cellPadding: 2.2,
-      textColor: [30, 41, 59],
-      lineColor: [226, 232, 240],
-      lineWidth: 0.15
-    },
-    headStyles: {
-      fillColor: [30, 41, 59],
-      textColor: [255, 255, 255],
-      fontStyle: 'bold',
-      halign: 'left'
-    },
-    columnStyles: {
-      0: { cellWidth: 20 },
-      1: { cellWidth: 22, fontStyle: 'bold' },
-      2: { cellWidth: 18 },
-      3: { cellWidth: 'auto' },
-      4: { cellWidth: 18 },
-      5: { cellWidth: 22, halign: 'right' },
-      6: { cellWidth: 22, halign: 'right' },
-      7: { cellWidth: 24, halign: 'right', fontStyle: 'bold' }
-    },
-    alternateRowStyles: {
-      fillColor: [248, 250, 252]
-    }
-  });
-
-  // Footer & Signature Area
-  const footY = pageHeight - 16;
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  doc.setTextColor(148, 163, 184);
-  doc.text('Computer-generated Vendor Statement. Prepared by Boxy Cloud Kitchen Accounts Payable.', margin, footY);
-  doc.text(`Authorized Signatory`, pageWidth - margin - 35, footY);
+  drawFooter(ctx, 'Computer-generated Vendor Statement. Prepared by Boxy Cloud Kitchen Accounts Payable.', { offset: 16, signatory: true });
 
   const cleanName = (supplier.name || 'Supplier').replace(/[^a-zA-Z0-9]/g, '_');
-  const fileName = `Supplier_Ledger_${cleanName}_${dateRange.startDate}_to_${dateRange.endDate}.pdf`;
-  doc.save(fileName);
-  return fileName;
+  return saveDoc(ctx.doc, `Supplier_Ledger_${cleanName}_${dateRange.startDate}_to_${dateRange.endDate}.pdf`);
 };
 
 /**
@@ -665,78 +605,28 @@ export const exportOrdersPDF = ({
   settings = {},
   currency = '₹'
 }) => {
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
-  const margin = 14;
-  let currentY = 16;
+  const ctx = createPdfDoc(currency);
+  const { fmt } = ctx;
 
-  const companyName = (settings.companyName || 'BOXY CLOUD KITCHEN').toUpperCase();
-  const tagline = settings.tagline || 'Cloud Kitchen Operations & POS';
-  const fmt = (v) => formatCurrencyForPdf(v, currency);
+  let currentY = drawHeaderBanner(ctx, 16, {
+    settings,
+    defaultTagline: 'Cloud Kitchen Operations & POS',
+    title: 'ORDERS & SALES REPORT',
+    lines: [`Payment Filter: ${filterPayment}`, generatedDate()]
+  });
 
-  // Header Banner
-  doc.setFillColor(30, 41, 59);
-  doc.roundedRect(margin, currentY, pageWidth - margin * 2, 28, 3, 3, 'F');
-
-  doc.setTextColor(255, 255, 255);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(15);
-  doc.text(companyName, margin + 8, currentY + 10);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(203, 213, 225);
-  doc.text(tagline, margin + 8, currentY + 16);
-
-  // Document Badge on right
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
-  doc.setTextColor(255, 255, 255);
-  doc.text('ORDERS & SALES REPORT', pageWidth - margin - 8, currentY + 10, { align: 'right' });
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(148, 163, 184);
-  doc.text(`Payment Filter: ${filterPayment}`, pageWidth - margin - 8, currentY + 17, { align: 'right' });
-  doc.text(`Generated: ${new Date().toLocaleDateString('en-GB')}`, pageWidth - margin - 8, currentY + 22, { align: 'right' });
-
-  currentY += 34;
-
-  // Summary Metrics
   const totalRev = sales.reduce((sum, s) => sum + Number(s.totalAmount || 0), 0);
   const totalDiscount = sales.reduce((sum, s) => sum + Number(s.discount || 0), 0);
   const totalTax = sales.reduce((sum, s) => sum + Number(s.taxAmount || 0), 0);
   const avgOrder = sales.length > 0 ? totalRev / sales.length : 0;
 
-  const cardWidth = (pageWidth - margin * 2 - 9) / 4;
-  const cards = [
-    { label: 'TOTAL INVOICES', value: `${sales.length} Bills`, bg: [238, 242, 255], border: [99, 102, 241], text: [49, 46, 129] },
-    { label: 'GROSS REVENUE', value: fmt(totalRev), bg: [240, 253, 244], border: [34, 197, 94], text: [22, 101, 52] },
-    { label: 'TOTAL DISCOUNTS', value: fmt(totalDiscount), bg: [254, 242, 242], border: [239, 68, 68], text: [153, 27, 27] },
-    { label: 'AVG ORDER VALUE', value: fmt(avgOrder), bg: [255, 251, 235], border: [245, 158, 11], text: [180, 83, 9] }
-  ];
+  currentY = drawSummaryCards(ctx, currentY, [
+    card('TOTAL INVOICES', `${sales.length} Bills`, 'indigo'),
+    card('GROSS REVENUE', fmt(totalRev), 'green'),
+    card('TOTAL DISCOUNTS', fmt(totalDiscount), 'red'),
+    card('AVG ORDER VALUE', fmt(avgOrder), 'amber')
+  ]);
 
-  cards.forEach((card, idx) => {
-    const x = margin + idx * (cardWidth + 3);
-    doc.setFillColor(...card.bg);
-    doc.setDrawColor(...card.border);
-    doc.setLineWidth(0.3);
-    doc.roundedRect(x, currentY, cardWidth, 16, 2, 2, 'FD');
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(6.5);
-    doc.setTextColor(100, 116, 139);
-    doc.text(card.label, x + cardWidth / 2, currentY + 5, { align: 'center' });
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.setTextColor(...card.text);
-    doc.text(card.value, x + cardWidth / 2, currentY + 11.5, { align: 'center' });
-  });
-
-  currentY += 21;
-
-  // Table Data
   const tableRows = sales.map(s => {
     const itemsText = s.itemsSummary || (s.items || []).map(i => `${i.quantity}x ${i.productName || i.name}`).join(', ') || 'POS Order';
     const dateStr = s.date ? new Date(s.date).toLocaleDateString('en-GB') : '—';
@@ -751,58 +641,29 @@ export const exportOrdersPDF = ({
     ];
   });
 
-  // Totals Row
   tableRows.push([
-    { content: 'TOTALS', styles: { fontStyle: 'bold' } },
-    { content: `${sales.length} Orders`, styles: { fontStyle: 'bold' } },
-    { content: '—', styles: { fontStyle: 'bold' } },
-    { content: `Taxes Collected: ${fmt(totalTax)}`, styles: { fontStyle: 'bold' } },
-    { content: '—', styles: { fontStyle: 'bold' } },
-    { content: fmt(totalRev), styles: { fontStyle: 'bold', textColor: [22, 101, 52] } },
-    { content: '—', styles: { fontStyle: 'bold' } }
+    boldCell('TOTALS'),
+    boldCell(`${sales.length} Orders`),
+    boldCell('—'),
+    boldCell(`Taxes Collected: ${fmt(totalTax)}`),
+    boldCell('—'),
+    boldCell(fmt(totalRev), [22, 101, 52]),
+    boldCell('—')
   ]);
 
-  autoTable(doc, {
-    startY: currentY,
-    margin: { left: margin, right: margin },
-    head: [['INVOICE #', 'DATE', 'CUSTOMER', 'ITEMS ORDERED', 'METHOD', 'TOTAL', 'STATUS']],
-    body: tableRows,
-    theme: 'grid',
-    styles: {
-      fontSize: 7.5,
-      cellPadding: 2.2,
-      textColor: [30, 41, 59],
-      lineColor: [226, 232, 240],
-      lineWidth: 0.15
-    },
-    headStyles: {
-      fillColor: [30, 41, 59],
-      textColor: [255, 255, 255],
-      fontStyle: 'bold',
-      halign: 'left'
-    },
-    columnStyles: {
-      0: { cellWidth: 22, fontStyle: 'bold' },
-      1: { cellWidth: 20 },
-      2: { cellWidth: 28 },
-      3: { cellWidth: 'auto' },
-      4: { cellWidth: 20 },
-      5: { cellWidth: 24, halign: 'right', fontStyle: 'bold' },
-      6: { cellWidth: 20, halign: 'center' }
-    },
-    alternateRowStyles: { fillColor: [248, 250, 252] }
+  drawGridTable(ctx, currentY, [['INVOICE #', 'DATE', 'CUSTOMER', 'ITEMS ORDERED', 'METHOD', 'TOTAL', 'STATUS']], tableRows, {
+    0: { cellWidth: 22, fontStyle: 'bold' },
+    1: { cellWidth: 20 },
+    2: { cellWidth: 28 },
+    3: { cellWidth: 'auto' },
+    4: { cellWidth: 20 },
+    5: { cellWidth: 24, halign: 'right', fontStyle: 'bold' },
+    6: { cellWidth: 20, halign: 'center' }
   });
 
-  const footY = pageHeight - 14;
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  doc.setTextColor(148, 163, 184);
-  doc.text('Official Boxy Cloud Kitchen Orders Report. All sales recorded and synced.', margin, footY);
-  doc.text(`Page 1 of 1`, pageWidth - margin, footY, { align: 'right' });
+  drawFooter(ctx, 'Official Boxy Cloud Kitchen Orders Report. All sales recorded and synced.');
 
-  const fileName = `Boxy_Orders_Report_${new Date().toISOString().split('T')[0]}.pdf`;
-  doc.save(fileName);
-  return fileName;
+  return saveDoc(ctx.doc, `Boxy_Orders_Report_${todayIso()}.pdf`);
 };
 
 /**
@@ -817,76 +678,27 @@ export const exportTransactionsPDF = ({
   settings = {},
   currency = '₹'
 }) => {
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
-  const margin = 14;
-  let currentY = 16;
+  const ctx = createPdfDoc(currency);
+  const { fmt } = ctx;
 
-  const companyName = (settings.companyName || 'BOXY CLOUD KITCHEN').toUpperCase();
-  const tagline = settings.tagline || 'Cash Flow & General Ledger Systems';
-  const fmt = (v) => formatCurrencyForPdf(v, currency);
-
-  // Header Banner
-  doc.setFillColor(30, 41, 59);
-  doc.roundedRect(margin, currentY, pageWidth - margin * 2, 28, 3, 3, 'F');
-
-  doc.setTextColor(255, 255, 255);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(15);
-  doc.text(companyName, margin + 8, currentY + 10);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(203, 213, 225);
-  doc.text(tagline, margin + 8, currentY + 16);
-
-  // Document Badge on right
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
-  doc.setTextColor(255, 255, 255);
-  doc.text('CASH FLOW LEDGER', pageWidth - margin - 8, currentY + 10, { align: 'right' });
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(148, 163, 184);
-  doc.text(`Flow: ${filterFlow}  |  Type: ${filterType}`, pageWidth - margin - 8, currentY + 17, { align: 'right' });
-  doc.text(`Generated: ${new Date().toLocaleDateString('en-GB')}`, pageWidth - margin - 8, currentY + 22, { align: 'right' });
-
-  currentY += 34;
+  let currentY = drawHeaderBanner(ctx, 16, {
+    settings,
+    defaultTagline: 'Cash Flow & General Ledger Systems',
+    title: 'CASH FLOW LEDGER',
+    lines: [`Flow: ${filterFlow}  |  Type: ${filterType}`, generatedDate()]
+  });
 
   const totalIn = transactions.filter(t => t.flow === 'IN').reduce((sum, t) => sum + Number(t.amount || 0), 0);
   const totalOut = transactions.filter(t => t.flow === 'OUT').reduce((sum, t) => sum + Number(t.amount || 0), 0);
   const netFlow = totalIn - totalOut;
 
-  const cardWidth = (pageWidth - margin * 2 - 9) / 4;
-  const cards = [
-    { label: 'TOTAL ENTRIES', value: `${transactions.length} Records`, bg: [248, 250, 252], border: [203, 213, 225], text: [71, 85, 105] },
-    { label: 'TOTAL INFLOW (+)', value: fmt(totalIn), bg: [240, 253, 244], border: [34, 197, 94], text: [22, 101, 52] },
-    { label: 'TOTAL OUTFLOW (-)', value: fmt(totalOut), bg: [254, 242, 242], border: [239, 68, 68], text: [153, 27, 27] },
-    { label: 'NET CASH FLOW', value: fmt(netFlow), bg: [238, 242, 255], border: [99, 102, 241], text: [49, 46, 129] }
-  ];
+  currentY = drawSummaryCards(ctx, currentY, [
+    card('TOTAL ENTRIES', `${transactions.length} Records`, 'slate'),
+    card('TOTAL INFLOW (+)', fmt(totalIn), 'green'),
+    card('TOTAL OUTFLOW (-)', fmt(totalOut), 'red'),
+    card('NET CASH FLOW', fmt(netFlow), 'indigo')
+  ]);
 
-  cards.forEach((card, idx) => {
-    const x = margin + idx * (cardWidth + 3);
-    doc.setFillColor(...card.bg);
-    doc.setDrawColor(...card.border);
-    doc.setLineWidth(0.3);
-    doc.roundedRect(x, currentY, cardWidth, 16, 2, 2, 'FD');
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(6.5);
-    doc.setTextColor(100, 116, 139);
-    doc.text(card.label, x + cardWidth / 2, currentY + 5, { align: 'center' });
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.setTextColor(...card.text);
-    doc.text(card.value, x + cardWidth / 2, currentY + 11.5, { align: 'center' });
-  });
-
-  currentY += 21;
-
-  // Table Data
   const tableRows = transactions.map(t => {
     const dateStr = t.date ? new Date(t.date).toLocaleDateString('en-GB') : '—';
     const isIncome = t.flow === 'IN';
@@ -903,56 +715,28 @@ export const exportTransactionsPDF = ({
   });
 
   tableRows.push([
-    { content: 'TOTALS', styles: { fontStyle: 'bold' } },
-    { content: `${transactions.length} Txns`, styles: { fontStyle: 'bold' } },
-    { content: 'NET', styles: { fontStyle: 'bold' } },
+    boldCell('TOTALS'),
+    boldCell(`${transactions.length} Txns`),
+    boldCell('NET'),
     { content: `In: ${fmt(totalIn)} | Out: ${fmt(totalOut)}`, colSpan: 3, styles: { fontStyle: 'bold' } },
-    { content: '—', styles: { fontStyle: 'bold' } },
-    { content: fmt(netFlow), styles: { fontStyle: 'bold', textColor: netFlow >= 0 ? [22, 101, 52] : [153, 27, 27] } }
+    boldCell('—'),
+    boldCell(fmt(netFlow), netFlow >= 0 ? [22, 101, 52] : [153, 27, 27])
   ]);
 
-  autoTable(doc, {
-    startY: currentY,
-    margin: { left: margin, right: margin },
-    head: [['REF #', 'DATE', 'FLOW', 'TYPE', 'PARTY / ACCOUNT', 'DESCRIPTION / NOTE', 'METHOD', 'AMOUNT']],
-    body: tableRows,
-    theme: 'grid',
-    styles: {
-      fontSize: 7.5,
-      cellPadding: 2.2,
-      textColor: [30, 41, 59],
-      lineColor: [226, 232, 240],
-      lineWidth: 0.15
-    },
-    headStyles: {
-      fillColor: [30, 41, 59],
-      textColor: [255, 255, 255],
-      fontStyle: 'bold',
-      halign: 'left'
-    },
-    columnStyles: {
-      0: { cellWidth: 22, fontStyle: 'bold' },
-      1: { cellWidth: 18 },
-      2: { cellWidth: 14, halign: 'center' },
-      3: { cellWidth: 20 },
-      4: { cellWidth: 26 },
-      5: { cellWidth: 'auto' },
-      6: { cellWidth: 18 },
-      7: { cellWidth: 24, halign: 'right', fontStyle: 'bold' }
-    },
-    alternateRowStyles: { fillColor: [248, 250, 252] }
+  drawGridTable(ctx, currentY, [['REF #', 'DATE', 'FLOW', 'TYPE', 'PARTY / ACCOUNT', 'DESCRIPTION / NOTE', 'METHOD', 'AMOUNT']], tableRows, {
+    0: { cellWidth: 22, fontStyle: 'bold' },
+    1: { cellWidth: 18 },
+    2: { cellWidth: 14, halign: 'center' },
+    3: { cellWidth: 20 },
+    4: { cellWidth: 26 },
+    5: { cellWidth: 'auto' },
+    6: { cellWidth: 18 },
+    7: { cellWidth: 24, halign: 'right', fontStyle: 'bold' }
   });
 
-  const footY = pageHeight - 14;
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  doc.setTextColor(148, 163, 184);
-  doc.text('Certified Cash Flow Ledger Report • Real-time Boxy Accounting Synchronization', margin, footY);
-  doc.text(`Page 1 of 1`, pageWidth - margin, footY, { align: 'right' });
+  drawFooter(ctx, 'Certified Cash Flow Ledger Report • Real-time Boxy Accounting Synchronization');
 
-  const fileName = `Boxy_Transactions_Ledger_${new Date().toISOString().split('T')[0]}.pdf`;
-  doc.save(fileName);
-  return fileName;
+  return saveDoc(ctx.doc, `Boxy_Transactions_Ledger_${todayIso()}.pdf`);
 };
 
 /**
@@ -966,72 +750,23 @@ export const exportDailyReportPDF = ({
   settings = {},
   currency = '₹'
 }) => {
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
-  const margin = 14;
-  let currentY = 16;
+  const ctx = createPdfDoc(currency);
+  const { fmt } = ctx;
 
-  const companyName = (settings.companyName || 'BOXY CLOUD KITCHEN').toUpperCase();
-  const tagline = settings.tagline || 'Daily Business Operations & Performance';
-  const fmt = (v) => formatCurrencyForPdf(v, currency);
-
-  // Header Banner
-  doc.setFillColor(30, 41, 59);
-  doc.roundedRect(margin, currentY, pageWidth - margin * 2, 28, 3, 3, 'F');
-
-  doc.setTextColor(255, 255, 255);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(15);
-  doc.text(companyName, margin + 8, currentY + 10);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(203, 213, 225);
-  doc.text(tagline, margin + 8, currentY + 16);
-
-  // Document Badge on right
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
-  doc.setTextColor(255, 255, 255);
-  doc.text('DAILY BUSINESS STATEMENT', pageWidth - margin - 8, currentY + 10, { align: 'right' });
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(148, 163, 184);
-  doc.text(`Date: ${formatDate(selectedDay)}`, pageWidth - margin - 8, currentY + 17, { align: 'right' });
-  doc.text(`Generated: ${new Date().toLocaleDateString('en-GB')}`, pageWidth - margin - 8, currentY + 22, { align: 'right' });
-
-  currentY += 34;
-
-  const cardWidth = (pageWidth - margin * 2 - 9) / 4;
-  const cards = [
-    { label: "TODAY'S SALES", value: fmt(dailyData.totalSales), bg: [240, 253, 244], border: [34, 197, 94], text: [22, 101, 52] },
-    { label: 'ORDERS COUNT', value: `${dailyData.ordersCount || 0} Bills`, bg: [238, 242, 255], border: [99, 102, 241], text: [49, 46, 129] },
-    { label: 'PURCHASES & EXPENSES', value: fmt((dailyData.totalPurchases || 0) + (dailyData.totalExpenses || 0)), bg: [254, 242, 242], border: [239, 68, 68], text: [153, 27, 27] },
-    { label: 'NET DAILY PROFIT', value: fmt(dailyData.netProfit), bg: [255, 251, 235], border: [245, 158, 11], text: [180, 83, 9] }
-  ];
-
-  cards.forEach((card, idx) => {
-    const x = margin + idx * (cardWidth + 3);
-    doc.setFillColor(...card.bg);
-    doc.setDrawColor(...card.border);
-    doc.setLineWidth(0.3);
-    doc.roundedRect(x, currentY, cardWidth, 16, 2, 2, 'FD');
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(6.5);
-    doc.setTextColor(100, 116, 139);
-    doc.text(card.label, x + cardWidth / 2, currentY + 5, { align: 'center' });
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.setTextColor(...card.text);
-    doc.text(card.value, x + cardWidth / 2, currentY + 11.5, { align: 'center' });
+  let currentY = drawHeaderBanner(ctx, 16, {
+    settings,
+    defaultTagline: 'Daily Business Operations & Performance',
+    title: 'DAILY BUSINESS STATEMENT',
+    lines: [`Date: ${formatDate(selectedDay)}`, generatedDate()]
   });
 
-  currentY += 21;
+  currentY = drawSummaryCards(ctx, currentY, [
+    card("TODAY'S SALES", fmt(dailyData.totalSales), 'green'),
+    card('ORDERS COUNT', `${dailyData.ordersCount || 0} Bills`, 'indigo'),
+    card('PURCHASES & EXPENSES', fmt((dailyData.totalPurchases || 0) + (dailyData.totalExpenses || 0)), 'red'),
+    card('NET DAILY PROFIT', fmt(dailyData.netProfit), 'amber')
+  ]);
 
-  // Day Sales Table
   const tableRows = (dailyData.daySales || []).map(s => [
     s.invoiceNumber || '—',
     s.date ? new Date(s.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—',
@@ -1044,58 +779,30 @@ export const exportDailyReportPDF = ({
   ]);
 
   tableRows.push([
-    { content: 'TOTALS', styles: { fontStyle: 'bold' } },
-    { content: `${dailyData.ordersCount || 0} Bills`, styles: { fontStyle: 'bold' } },
-    { content: '—', styles: { fontStyle: 'bold' } },
-    { content: `Net Profit: ${fmt(dailyData.netProfit)}`, styles: { fontStyle: 'bold' } },
-    { content: '—', styles: { fontStyle: 'bold' } },
-    { content: '—', styles: { fontStyle: 'bold' } },
-    { content: fmt(dailyData.totalTax || 0), styles: { fontStyle: 'bold' } },
-    { content: fmt(dailyData.totalSales), styles: { fontStyle: 'bold', textColor: [22, 101, 52] } }
+    boldCell('TOTALS'),
+    boldCell(`${dailyData.ordersCount || 0} Bills`),
+    boldCell('—'),
+    boldCell(`Net Profit: ${fmt(dailyData.netProfit)}`),
+    boldCell('—'),
+    boldCell('—'),
+    boldCell(fmt(dailyData.totalTax || 0)),
+    boldCell(fmt(dailyData.totalSales), [22, 101, 52])
   ]);
 
-  autoTable(doc, {
-    startY: currentY,
-    margin: { left: margin, right: margin },
-    head: [['INVOICE #', 'TIME', 'CUSTOMER', 'ITEMS SUMMARY', 'METHOD', 'SUBTOTAL', 'TAX (GST)', 'TOTAL AMOUNT']],
-    body: tableRows,
-    theme: 'grid',
-    styles: {
-      fontSize: 7.5,
-      cellPadding: 2.2,
-      textColor: [30, 41, 59],
-      lineColor: [226, 232, 240],
-      lineWidth: 0.15
-    },
-    headStyles: {
-      fillColor: [30, 41, 59],
-      textColor: [255, 255, 255],
-      fontStyle: 'bold',
-      halign: 'left'
-    },
-    columnStyles: {
-      0: { cellWidth: 22, fontStyle: 'bold' },
-      1: { cellWidth: 16 },
-      2: { cellWidth: 26 },
-      3: { cellWidth: 'auto' },
-      4: { cellWidth: 18 },
-      5: { cellWidth: 20, halign: 'right' },
-      6: { cellWidth: 18, halign: 'right' },
-      7: { cellWidth: 24, halign: 'right', fontStyle: 'bold' }
-    },
-    alternateRowStyles: { fillColor: [248, 250, 252] }
+  drawGridTable(ctx, currentY, [['INVOICE #', 'TIME', 'CUSTOMER', 'ITEMS SUMMARY', 'METHOD', 'SUBTOTAL', 'TAX (GST)', 'TOTAL AMOUNT']], tableRows, {
+    0: { cellWidth: 22, fontStyle: 'bold' },
+    1: { cellWidth: 16 },
+    2: { cellWidth: 26 },
+    3: { cellWidth: 'auto' },
+    4: { cellWidth: 18 },
+    5: { cellWidth: 20, halign: 'right' },
+    6: { cellWidth: 18, halign: 'right' },
+    7: { cellWidth: 24, halign: 'right', fontStyle: 'bold' }
   });
 
-  const footY = pageHeight - 14;
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  doc.setTextColor(148, 163, 184);
-  doc.text('Boxy Cloud Kitchen Daily Business Closing Statement.', margin, footY);
-  doc.text(`Page 1 of 1`, pageWidth - margin, footY, { align: 'right' });
+  drawFooter(ctx, 'Boxy Cloud Kitchen Daily Business Closing Statement.');
 
-  const fileName = `Boxy_Daily_Report_${selectedDay}.pdf`;
-  doc.save(fileName);
-  return fileName;
+  return saveDoc(ctx.doc, `Boxy_Daily_Report_${selectedDay}.pdf`);
 };
 
 /**
@@ -1109,72 +816,23 @@ export const exportMonthlyReportPDF = ({
   settings = {},
   currency = '₹'
 }) => {
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
-  const margin = 14;
-  let currentY = 16;
+  const ctx = createPdfDoc(currency);
+  const { fmt } = ctx;
 
-  const companyName = (settings.companyName || 'BOXY CLOUD KITCHEN').toUpperCase();
-  const tagline = settings.tagline || 'Monthly Financial P&L and Operational Trends';
-  const fmt = (v) => formatCurrencyForPdf(v, currency);
-
-  // Header Banner
-  doc.setFillColor(30, 41, 59);
-  doc.roundedRect(margin, currentY, pageWidth - margin * 2, 28, 3, 3, 'F');
-
-  doc.setTextColor(255, 255, 255);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(15);
-  doc.text(companyName, margin + 8, currentY + 10);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(203, 213, 225);
-  doc.text(tagline, margin + 8, currentY + 16);
-
-  // Document Badge on right
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
-  doc.setTextColor(255, 255, 255);
-  doc.text('MONTHLY STATEMENT & P&L', pageWidth - margin - 8, currentY + 10, { align: 'right' });
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(148, 163, 184);
-  doc.text(`Month: ${selectedMonth}`, pageWidth - margin - 8, currentY + 17, { align: 'right' });
-  doc.text(`Generated: ${new Date().toLocaleDateString('en-GB')}`, pageWidth - margin - 8, currentY + 22, { align: 'right' });
-
-  currentY += 34;
-
-  const cardWidth = (pageWidth - margin * 2 - 9) / 4;
-  const cards = [
-    { label: 'MONTHLY SALES', value: fmt(monthlyData.totalSales), bg: [240, 253, 244], border: [34, 197, 94], text: [22, 101, 52] },
-    { label: 'PURCHASES / COGS', value: fmt(monthlyData.totalPurchases), bg: [255, 251, 235], border: [245, 158, 11], text: [180, 83, 9] },
-    { label: 'OPERATING OVERHEAD', value: fmt(monthlyData.totalExpenses), bg: [254, 242, 242], border: [239, 68, 68], text: [153, 27, 27] },
-    { label: 'NET MONTHLY PROFIT', value: fmt(monthlyData.netProfit), bg: [238, 242, 255], border: [99, 102, 241], text: [49, 46, 129] }
-  ];
-
-  cards.forEach((card, idx) => {
-    const x = margin + idx * (cardWidth + 3);
-    doc.setFillColor(...card.bg);
-    doc.setDrawColor(...card.border);
-    doc.setLineWidth(0.3);
-    doc.roundedRect(x, currentY, cardWidth, 16, 2, 2, 'FD');
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(6.5);
-    doc.setTextColor(100, 116, 139);
-    doc.text(card.label, x + cardWidth / 2, currentY + 5, { align: 'center' });
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.setTextColor(...card.text);
-    doc.text(card.value, x + cardWidth / 2, currentY + 11.5, { align: 'center' });
+  let currentY = drawHeaderBanner(ctx, 16, {
+    settings,
+    defaultTagline: 'Monthly Financial P&L and Operational Trends',
+    title: 'MONTHLY STATEMENT & P&L',
+    lines: [`Month: ${selectedMonth}`, generatedDate()]
   });
 
-  currentY += 21;
+  currentY = drawSummaryCards(ctx, currentY, [
+    card('MONTHLY SALES', fmt(monthlyData.totalSales), 'green'),
+    card('PURCHASES / COGS', fmt(monthlyData.totalPurchases), 'amber'),
+    card('OPERATING OVERHEAD', fmt(monthlyData.totalExpenses), 'red'),
+    card('NET MONTHLY PROFIT', fmt(monthlyData.netProfit), 'indigo')
+  ]);
 
-  // Daily Ledger Rows
   const tableRows = (monthlyData.dayLedger || []).map(d => [
     d.dateStr,
     `Day ${d.dayNum}`,
@@ -1187,54 +845,26 @@ export const exportMonthlyReportPDF = ({
 
   tableRows.push([
     { content: 'MONTH TOTALS', colSpan: 2, styles: { fontStyle: 'bold' } },
-    { content: `${monthlyData.ordersCount || 0} Orders`, styles: { fontStyle: 'bold' } },
-    { content: fmt(monthlyData.totalSales), styles: { fontStyle: 'bold', textColor: [22, 101, 52] } },
-    { content: fmt(monthlyData.totalPurchases), styles: { fontStyle: 'bold', textColor: [180, 83, 9] } },
-    { content: fmt(monthlyData.totalExpenses), styles: { fontStyle: 'bold', textColor: [153, 27, 27] } },
-    { content: fmt(monthlyData.netProfit), styles: { fontStyle: 'bold', textColor: [49, 46, 129] } }
+    boldCell(`${monthlyData.ordersCount || 0} Orders`),
+    boldCell(fmt(monthlyData.totalSales), [22, 101, 52]),
+    boldCell(fmt(monthlyData.totalPurchases), [180, 83, 9]),
+    boldCell(fmt(monthlyData.totalExpenses), [153, 27, 27]),
+    boldCell(fmt(monthlyData.netProfit), [49, 46, 129])
   ]);
 
-  autoTable(doc, {
-    startY: currentY,
-    margin: { left: margin, right: margin },
-    head: [['DATE', 'DAY', 'ACTIVITY', 'SALES REVENUE', 'RESTOCK PURCHASES', 'OVERHEAD', 'NET PROFIT']],
-    body: tableRows,
-    theme: 'grid',
-    styles: {
-      fontSize: 7.5,
-      cellPadding: 2.2,
-      textColor: [30, 41, 59],
-      lineColor: [226, 232, 240],
-      lineWidth: 0.15
-    },
-    headStyles: {
-      fillColor: [30, 41, 59],
-      textColor: [255, 255, 255],
-      fontStyle: 'bold',
-      halign: 'left'
-    },
-    columnStyles: {
-      0: { cellWidth: 26 },
-      1: { cellWidth: 20 },
-      2: { cellWidth: 24 },
-      3: { cellWidth: 28, halign: 'right' },
-      4: { cellWidth: 28, halign: 'right' },
-      5: { cellWidth: 28, halign: 'right' },
-      6: { cellWidth: 28, halign: 'right', fontStyle: 'bold' }
-    },
-    alternateRowStyles: { fillColor: [248, 250, 252] }
+  drawGridTable(ctx, currentY, [['DATE', 'DAY', 'ACTIVITY', 'SALES REVENUE', 'RESTOCK PURCHASES', 'OVERHEAD', 'NET PROFIT']], tableRows, {
+    0: { cellWidth: 26 },
+    1: { cellWidth: 20 },
+    2: { cellWidth: 24 },
+    3: { cellWidth: 28, halign: 'right' },
+    4: { cellWidth: 28, halign: 'right' },
+    5: { cellWidth: 28, halign: 'right' },
+    6: { cellWidth: 28, halign: 'right', fontStyle: 'bold' }
   });
 
-  const footY = pageHeight - 14;
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  doc.setTextColor(148, 163, 184);
-  doc.text('Boxy Cloud Kitchen Monthly Statement & Performance Analytics.', margin, footY);
-  doc.text(`Page 1 of 1`, pageWidth - margin, footY, { align: 'right' });
+  drawFooter(ctx, 'Boxy Cloud Kitchen Monthly Statement & Performance Analytics.');
 
-  const fileName = `Boxy_Monthly_Report_${selectedMonth}.pdf`;
-  doc.save(fileName);
-  return fileName;
+  return saveDoc(ctx.doc, `Boxy_Monthly_Report_${selectedMonth}.pdf`);
 };
 
 /**
@@ -1250,73 +880,28 @@ export const exportCustomReportPDF = ({
   settings = {},
   currency = '₹'
 }) => {
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
-  const margin = 14;
-  let currentY = 16;
+  const ctx = createPdfDoc(currency);
+  const { fmt } = ctx;
 
-  const companyName = (settings.companyName || 'BOXY CLOUD KITCHEN').toUpperCase();
-  const tagline = settings.tagline || 'Customized Financial Reporting & Performance';
-  const fmt = (v) => formatCurrencyForPdf(v, currency);
-
-  // Header Banner
-  doc.setFillColor(30, 41, 59);
-  doc.roundedRect(margin, currentY, pageWidth - margin * 2, 28, 3, 3, 'F');
-
-  doc.setTextColor(255, 255, 255);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(15);
-  doc.text(companyName, margin + 8, currentY + 10);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(203, 213, 225);
-  doc.text(tagline, margin + 8, currentY + 16);
-
-  // Document Badge on right
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
-  doc.setTextColor(255, 255, 255);
-  doc.text('CUSTOM FINANCIAL STATEMENT', pageWidth - margin - 8, currentY + 10, { align: 'right' });
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(148, 163, 184);
-  doc.text(`Period: ${formatDate(customStartDate)} to ${formatDate(customEndDate)}`, pageWidth - margin - 8, currentY + 17, { align: 'right' });
-  doc.text(`Filter: ${customCategoryFilter.toUpperCase()}`, pageWidth - margin - 8, currentY + 22, { align: 'right' });
-
-  currentY += 34;
-
-  const cardWidth = (pageWidth - margin * 2 - 9) / 4;
-  const cards = [
-    { label: 'TOTAL SALES REVENUE', value: fmt(customData.totalSales), bg: [240, 253, 244], border: [34, 197, 94], text: [22, 101, 52] },
-    { label: 'PURCHASES / RESTOCK', value: fmt(customData.totalPurchases), bg: [255, 251, 235], border: [245, 158, 11], text: [180, 83, 9] },
-    { label: 'OPERATING OVERHEAD', value: fmt(customData.totalExpenses), bg: [254, 242, 242], border: [239, 68, 68], text: [153, 27, 27] },
-    { label: 'NET PERIOD PROFIT', value: fmt(customData.netProfit), bg: [238, 242, 255], border: [99, 102, 241], text: [49, 46, 129] }
-  ];
-
-  cards.forEach((card, idx) => {
-    const x = margin + idx * (cardWidth + 3);
-    doc.setFillColor(...card.bg);
-    doc.setDrawColor(...card.border);
-    doc.setLineWidth(0.3);
-    doc.roundedRect(x, currentY, cardWidth, 16, 2, 2, 'FD');
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(6.5);
-    doc.setTextColor(100, 116, 139);
-    doc.text(card.label, x + cardWidth / 2, currentY + 5, { align: 'center' });
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.setTextColor(...card.text);
-    doc.text(card.value, x + cardWidth / 2, currentY + 11.5, { align: 'center' });
+  let currentY = drawHeaderBanner(ctx, 16, {
+    settings,
+    defaultTagline: 'Customized Financial Reporting & Performance',
+    title: 'CUSTOM FINANCIAL STATEMENT',
+    lines: [
+      `Period: ${formatDate(customStartDate)} to ${formatDate(customEndDate)}`,
+      `Filter: ${customCategoryFilter.toUpperCase()}`
+    ]
   });
 
-  currentY += 21;
+  currentY = drawSummaryCards(ctx, currentY, [
+    card('TOTAL SALES REVENUE', fmt(customData.totalSales), 'green'),
+    card('PURCHASES / RESTOCK', fmt(customData.totalPurchases), 'amber'),
+    card('OPERATING OVERHEAD', fmt(customData.totalExpenses), 'red'),
+    card('NET PERIOD PROFIT', fmt(customData.netProfit), 'indigo')
+  ]);
 
   let headers = ['INVOICE #', 'DATE', 'CUSTOMER / DETAIL', 'METHOD', 'SUBTOTAL', 'TAX', 'TOTAL'];
-  let tableRows = [];
+  let tableRows;
 
   if (customCategoryFilter === 'purchases') {
     headers = ['PURCHASE #', 'DATE', 'SUPPLIER', 'STATUS', 'METHOD', 'PAID', 'TOTAL'];
@@ -1352,47 +937,19 @@ export const exportCustomReportPDF = ({
     ]);
   }
 
-  autoTable(doc, {
-    startY: currentY,
-    margin: { left: margin, right: margin },
-    head: [headers],
-    body: tableRows,
-    theme: 'grid',
-    styles: {
-      fontSize: 7.5,
-      cellPadding: 2.2,
-      textColor: [30, 41, 59],
-      lineColor: [226, 232, 240],
-      lineWidth: 0.15
-    },
-    headStyles: {
-      fillColor: [30, 41, 59],
-      textColor: [255, 255, 255],
-      fontStyle: 'bold',
-      halign: 'left'
-    },
-    columnStyles: {
-      0: { cellWidth: 24, fontStyle: 'bold' },
-      1: { cellWidth: 20 },
-      2: { cellWidth: 'auto' },
-      3: { cellWidth: 22 },
-      4: { cellWidth: 22, halign: 'right' },
-      5: { cellWidth: 20, halign: 'right' },
-      6: { cellWidth: 24, halign: 'right', fontStyle: 'bold' }
-    },
-    alternateRowStyles: { fillColor: [248, 250, 252] }
+  drawGridTable(ctx, currentY, [headers], tableRows, {
+    0: { cellWidth: 24, fontStyle: 'bold' },
+    1: { cellWidth: 20 },
+    2: { cellWidth: 'auto' },
+    3: { cellWidth: 22 },
+    4: { cellWidth: 22, halign: 'right' },
+    5: { cellWidth: 20, halign: 'right' },
+    6: { cellWidth: 24, halign: 'right', fontStyle: 'bold' }
   });
 
-  const footY = pageHeight - 14;
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  doc.setTextColor(148, 163, 184);
-  doc.text('Boxy Cloud Kitchen Custom Statement of Financial Performance.', margin, footY);
-  doc.text(`Page 1 of 1`, pageWidth - margin, footY, { align: 'right' });
+  drawFooter(ctx, 'Boxy Cloud Kitchen Custom Statement of Financial Performance.');
 
-  const fileName = `Boxy_Custom_Report_${customStartDate || 'start'}_to_${customEndDate || 'end'}.pdf`;
-  doc.save(fileName);
-  return fileName;
+  return saveDoc(ctx.doc, `Boxy_Custom_Report_${customStartDate || 'start'}_to_${customEndDate || 'end'}.pdf`);
 };
 
 /**
@@ -1406,50 +963,26 @@ export const exportKitchenReportPDF = ({
   settings = {},
   currency = '₹'
 }) => {
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
-  const margin = 14;
-  let currentY = 16;
+  const ctx = createPdfDoc(currency);
+  const { fmt } = ctx;
 
-  const companyName = (settings.companyName || 'BOXY CLOUD KITCHEN').toUpperCase();
-  const tagline = settings.tagline || 'Kitchen Inventory & Recipe Costing Intelligence';
-  const fmt = (v) => formatCurrencyForPdf(v, currency);
-
-  // Header Banner
-  doc.setFillColor(30, 41, 59);
-  doc.roundedRect(margin, currentY, pageWidth - margin * 2, 28, 3, 3, 'F');
-
-  doc.setTextColor(255, 255, 255);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(15);
-  doc.text(companyName, margin + 8, currentY + 10);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(203, 213, 225);
-  doc.text(tagline, margin + 8, currentY + 16);
-
-  // Document Badge on right
   const subTitle = kitchenSubTab === 'stock'
     ? 'RAW MATERIALS & STOCK VALUATION'
     : kitchenSubTab === 'consumption'
     ? 'INVOICE BOM INGREDIENT CONSUMPTION'
     : 'RECIPE COSTING & GROSS MARGINS';
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
-  doc.setTextColor(255, 255, 255);
-  doc.text(subTitle, pageWidth - margin - 8, currentY + 10, { align: 'right' });
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(148, 163, 184);
-  doc.text(`Generated: ${new Date().toLocaleDateString('en-GB')}`, pageWidth - margin - 8, currentY + 18, { align: 'right' });
+  const currentY = drawHeaderBanner(ctx, 16, {
+    settings,
+    defaultTagline: 'Kitchen Inventory & Recipe Costing Intelligence',
+    title: subTitle,
+    titleSize: 10,
+    lines: [generatedDate()],
+    offsets: { name: 10, tagline: 16, title: 10, lines: [18] }
+  });
 
-  currentY += 34;
-
-  let headers = [];
-  let tableRows = [];
+  let headers;
+  let tableRows;
 
   if (kitchenSubTab === 'stock') {
     headers = ['ID', 'MATERIAL NAME', 'CATEGORY', 'CURRENT STOCK', 'UNIT', 'COST/UNIT', 'VALUATION', 'STATUS'];
@@ -1486,43 +1019,16 @@ export const exportKitchenReportPDF = ({
     ]);
   }
 
-  autoTable(doc, {
-    startY: currentY,
-    margin: { left: margin, right: margin },
-    head: [headers],
-    body: tableRows,
-    theme: 'grid',
-    styles: {
-      fontSize: 7.5,
-      cellPadding: 2.2,
-      textColor: [30, 41, 59],
-      lineColor: [226, 232, 240],
-      lineWidth: 0.15
-    },
-    headStyles: {
-      fillColor: [30, 41, 59],
-      textColor: [255, 255, 255],
-      fontStyle: 'bold',
-      halign: 'left'
-    },
-    alternateRowStyles: { fillColor: [248, 250, 252] }
-  });
+  drawGridTable(ctx, currentY, [headers], tableRows);
 
-  const footY = pageHeight - 14;
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  doc.setTextColor(148, 163, 184);
-  doc.text('Boxy Kitchen Intelligence & Recipe BOM Report.', margin, footY);
-  doc.text(`Page 1 of 1`, pageWidth - margin, footY, { align: 'right' });
+  drawFooter(ctx, 'Boxy Kitchen Intelligence & Recipe BOM Report.');
 
-  const fileName = `Boxy_Kitchen_${kitchenSubTab}_${new Date().toISOString().split('T')[0]}.pdf`;
-  doc.save(fileName);
-  return fileName;
+  return saveDoc(ctx.doc, `Boxy_Kitchen_${kitchenSubTab}_${todayIso()}.pdf`);
 };
 
 /**
  * =========================================================================
- * 9. PARTNER FINANCIAL STATEMENT PDF EXPORT
+ * 10. PARTNER FINANCIAL STATEMENT PDF EXPORT
  * =========================================================================
  */
 export const exportPartnerStatementPDF = ({
@@ -1533,90 +1039,33 @@ export const exportPartnerStatementPDF = ({
   settings = {},
   currency = '₹'
 }) => {
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  const pageWidth = doc.internal.pageSize.width;
-  const pageHeight = doc.internal.pageSize.height;
-  const margin = 14;
+  const ctx = createPdfDoc(currency);
+  const { doc, pageWidth, margin, fmt } = ctx;
   const contentWidth = pageWidth - margin * 2;
-  const fmt = (val) => formatCurrencyForPdf(val, currency);
 
-  // Top Accent Bar
-  doc.setFillColor(16, 185, 129); // Emerald
-  doc.rect(0, 0, pageWidth, 4, 'F');
-
-  // Header Box
-  doc.setFillColor(15, 23, 42); // Pure deep dark
-  doc.roundedRect(margin, 10, contentWidth, 32, 3, 3, 'F');
-
-  // Brand Info
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(16);
-  doc.setTextColor(255, 255, 255);
-  doc.text(String(settings.companyName || 'BOXY CLOUD KITCHEN').toUpperCase(), margin + 8, 22);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
-  doc.setTextColor(148, 163, 184);
-  doc.text('PARTNER PROFIT DISTRIBUTION & WITHDRAWAL STATEMENT', margin + 8, 29);
-  doc.text(`Period: ${dateRange.startDate || 'Beginning'} to ${dateRange.endDate || 'Present'}`, margin + 8, 35);
-
-  let currentY = 48;
+  let currentY = drawStatementHeader(ctx, {
+    accentColor: [16, 185, 129], // Emerald
+    title: 'PARTNER PROFIT DISTRIBUTION & WITHDRAWAL STATEMENT',
+    settings,
+    dateRange
+  });
 
   // Partner Isolated Profile Card
-  doc.setFillColor(248, 250, 252);
-  doc.setDrawColor(226, 232, 240);
-  doc.roundedRect(margin, currentY, contentWidth, 26, 2, 2, 'FD');
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
-  doc.setTextColor(15, 23, 42);
-  doc.text(partner.name, margin + 6, currentY + 8);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(100, 116, 139);
-  doc.text(`Phone: ${partner.phone || '—'}  |  Joined: ${formatDate(partner.joiningDate)}  |  Share: ${partner.profitShare}%`, margin + 6, currentY + 15);
+  drawProfileBox(ctx, currentY, 26, partner.name, [
+    `Phone: ${partner.phone || '—'}  |  Joined: ${formatDate(partner.joiningDate)}  |  Share: ${partner.profitShare}%`
+  ], { titleSize: 11, titleY: 8, textColor: [100, 116, 139], lineYs: [15] });
   if (partner.isLabour) {
     doc.setTextColor(5, 150, 105);
     doc.text(`Active Dual Role: Business Partner + Active Worker (${partner.jobRole || 'Kitchen Staff'})`, margin + 6, currentY + 21);
   }
-
   currentY += 32;
 
-  // 4 Financial Summary Metric Blocks
-  const colW = (contentWidth - 6) / 4;
-  const metrics = [
+  currentY = drawMetricBlocks(ctx, currentY, [
     { label: 'DISTRIBUTABLE PROFIT', val: fmt(financials.totalDistributableProfit || 0), color: [79, 70, 229] },
     { label: `PARTNER SHARE (${partner.profitShare}%)`, val: fmt(partner.allocatedProfit || 0), color: [16, 185, 129] },
     { label: 'TOTAL WITHDRAWALS', val: fmt(partner.totalWithdrawals || 0), color: [225, 29, 72] },
     { label: 'REMAINING BALANCE', val: fmt(partner.remainingBalance || 0), color: (partner.remainingBalance >= 0 ? [5, 150, 105] : [225, 29, 72]) }
-  ];
-
-  metrics.forEach((m, idx) => {
-    const x = margin + idx * (colW + 2);
-    doc.setFillColor(248, 250, 252);
-    doc.setDrawColor(226, 232, 240);
-    doc.roundedRect(x, currentY, colW, 18, 2, 2, 'FD');
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(6.5);
-    doc.setTextColor(100, 116, 139);
-    doc.text(m.label, x + 4, currentY + 6);
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
-    doc.setTextColor(...m.color);
-    doc.text(m.val, x + 4, currentY + 13);
-  });
-
-  currentY += 24;
-
-  // Withdrawals History Table
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
-  doc.setTextColor(15, 23, 42);
-  doc.text('Profit Withdrawal Transactions', margin, currentY);
-  currentY += 4;
+  ], (contentWidth - 6) / 4);
 
   const withdrawalRows = (withdrawals || []).map(w => [
     formatDate(w.date),
@@ -1625,126 +1074,52 @@ export const exportPartnerStatementPDF = ({
     w.notes || 'Partner profit withdrawal',
     fmt(w.amount || 0)
   ]);
-
   if (withdrawalRows.length === 0) {
     withdrawalRows.push(['—', '—', '—', 'No withdrawals recorded for this partner in the selected period.', fmt(0)]);
   }
 
-  autoTable(doc, {
-    startY: currentY,
-    margin: { left: margin, right: margin },
-    head: [['Date', 'Reference ID', 'Payment Method', 'Notes / Description', 'Amount Paid']],
-    body: withdrawalRows,
-    theme: 'grid',
-    styles: { fontSize: 8, cellPadding: 2.5, textColor: [30, 41, 59] },
-    headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold' },
-    columnStyles: { 4: { halign: 'right', fontStyle: 'bold', textColor: [225, 29, 72] } }
-  });
+  drawStatementTable(ctx, currentY, 'Profit Withdrawal Transactions',
+    [['Date', 'Reference ID', 'Payment Method', 'Notes / Description', 'Amount Paid']], withdrawalRows, [225, 29, 72]);
 
-  // Footer
-  const footY = pageHeight - 12;
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(148, 163, 184);
-  doc.text(`Generated on ${new Date().toLocaleString('en-GB')}  •  Boxy ERP Partner Portal`, margin, footY);
-  doc.text('Page 1 of 1', pageWidth - margin, footY, { align: 'right' });
+  drawPortalFooter(ctx, 'Partner Portal');
 
-  const fileName = `Partner_Statement_${partner.name}_${new Date().toISOString().split('T')[0]}.pdf`;
-  doc.save(fileName);
-  return fileName;
+  return saveDoc(doc, `Partner_Statement_${partner.name}_${todayIso()}.pdf`);
 };
 
 /**
  * =========================================================================
- * 10. LABOUR SALARY STATEMENT PDF EXPORT
+ * 11. LABOUR SALARY STATEMENT PDF EXPORT
  * =========================================================================
  */
 export const exportLabourStatementPDF = ({
   labourer,
   payments = [],
-  attendance = [],
   dateRange = {},
   settings = {},
   currency = '₹'
 }) => {
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  const pageWidth = doc.internal.pageSize.width;
-  const pageHeight = doc.internal.pageSize.height;
-  const margin = 14;
+  const ctx = createPdfDoc(currency);
+  const { doc, pageWidth, margin, fmt } = ctx;
   const contentWidth = pageWidth - margin * 2;
-  const fmt = (val) => formatCurrencyForPdf(val, currency);
 
-  // Top Accent Bar
-  doc.setFillColor(245, 158, 11); // Amber
-  doc.rect(0, 0, pageWidth, 4, 'F');
-
-  // Header Box
-  doc.setFillColor(15, 23, 42);
-  doc.roundedRect(margin, 10, contentWidth, 32, 3, 3, 'F');
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(16);
-  doc.setTextColor(255, 255, 255);
-  doc.text(String(settings.companyName || 'BOXY CLOUD KITCHEN').toUpperCase(), margin + 8, 22);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
-  doc.setTextColor(148, 163, 184);
-  doc.text('LABOUR SALARY & ATTENDANCE STATEMENT', margin + 8, 29);
-  doc.text(`Period: ${dateRange.startDate || 'Beginning'} to ${dateRange.endDate || 'Present'}`, margin + 8, 35);
-
-  let currentY = 48;
+  let currentY = drawStatementHeader(ctx, {
+    accentColor: [245, 158, 11], // Amber
+    title: 'LABOUR SALARY & ATTENDANCE STATEMENT',
+    settings,
+    dateRange
+  });
 
   // Worker Profile Card
-  doc.setFillColor(248, 250, 252);
-  doc.setDrawColor(226, 232, 240);
-  doc.roundedRect(margin, currentY, contentWidth, 24, 2, 2, 'FD');
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
-  doc.setTextColor(15, 23, 42);
-  doc.text(labourer.name, margin + 6, currentY + 8);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(100, 116, 139);
-  doc.text(`Role: ${labourer.jobRole || 'Worker'}  |  Phone: ${labourer.phone || '—'}  |  Type: ${labourer.salaryType || 'Monthly'} (${fmt(labourer.baseSalary || labourer.salaryAmount)})`, margin + 6, currentY + 16);
-
+  drawProfileBox(ctx, currentY, 24, labourer.name, [
+    `Role: ${labourer.jobRole || 'Worker'}  |  Phone: ${labourer.phone || '—'}  |  Type: ${labourer.salaryType || 'Monthly'} (${fmt(labourer.baseSalary || labourer.salaryAmount)})`
+  ], { titleSize: 11, titleY: 8, textColor: [100, 116, 139], lineYs: [16] });
   currentY += 30;
 
-  // Financial Metrics
-  const colW = (contentWidth - 4) / 3;
-  const metrics = [
+  currentY = drawMetricBlocks(ctx, currentY, [
     { label: 'TOTAL EARNED SALARY', val: fmt(labourer.earnedSalary || labourer.salaryAmount || 0), color: [79, 70, 229] },
     { label: 'TOTAL SALARY PAID', val: fmt(labourer.totalPaid || 0), color: [16, 185, 129] },
     { label: 'PENDING SALARY DUE', val: fmt(labourer.pendingSalary || 0), color: (labourer.pendingSalary > 0 ? [225, 29, 72] : [5, 150, 105]) }
-  ];
-
-  metrics.forEach((m, idx) => {
-    const x = margin + idx * (colW + 2);
-    doc.setFillColor(248, 250, 252);
-    doc.setDrawColor(226, 232, 240);
-    doc.roundedRect(x, currentY, colW, 18, 2, 2, 'FD');
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(6.5);
-    doc.setTextColor(100, 116, 139);
-    doc.text(m.label, x + 4, currentY + 6);
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
-    doc.setTextColor(...m.color);
-    doc.text(m.val, x + 4, currentY + 13);
-  });
-
-  currentY += 24;
-
-  // Payments Table
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
-  doc.setTextColor(15, 23, 42);
-  doc.text('Salary Payment History', margin, currentY);
-  currentY += 4;
+  ], (contentWidth - 4) / 3);
 
   const paymentRows = (payments || []).map(p => [
     formatDate(p.date),
@@ -1753,30 +1128,14 @@ export const exportLabourStatementPDF = ({
     p.notes || 'Salary payment',
     fmt(p.amount || 0)
   ]);
-
   if (paymentRows.length === 0) {
     paymentRows.push(['—', '—', '—', 'No salary payments recorded in this period.', fmt(0)]);
   }
 
-  autoTable(doc, {
-    startY: currentY,
-    margin: { left: margin, right: margin },
-    head: [['Payment Date', 'Salary Month', 'Payment Method', 'Notes', 'Amount Paid']],
-    body: paymentRows,
-    theme: 'grid',
-    styles: { fontSize: 8, cellPadding: 2.5, textColor: [30, 41, 59] },
-    headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold' },
-    columnStyles: { 4: { halign: 'right', fontStyle: 'bold', textColor: [5, 150, 105] } }
-  });
+  drawStatementTable(ctx, currentY, 'Salary Payment History',
+    [['Payment Date', 'Salary Month', 'Payment Method', 'Notes', 'Amount Paid']], paymentRows, [5, 150, 105]);
 
-  const footY = pageHeight - 12;
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(148, 163, 184);
-  doc.text(`Generated on ${new Date().toLocaleString('en-GB')}  •  Boxy ERP Labour Portal`, margin, footY);
-  doc.text('Page 1 of 1', pageWidth - margin, footY, { align: 'right' });
+  drawPortalFooter(ctx, 'Labour Portal');
 
-  const fileName = `Salary_Statement_${labourer.name}_${new Date().toISOString().split('T')[0]}.pdf`;
-  doc.save(fileName);
-  return fileName;
+  return saveDoc(doc, `Salary_Statement_${labourer.name}_${todayIso()}.pdf`);
 };

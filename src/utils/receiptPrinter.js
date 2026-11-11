@@ -1,3 +1,4 @@
+import { formatMoney } from './format';
 /**
  * Boxy Cloud Kitchen — Receipt Printing & WhatsApp Invoice Formatter
  * 
@@ -12,7 +13,7 @@ export const printOrderReceipt = (order, settings = {}) => {
   const logo = settings.logo || '/logo.jpg';
   const currency = settings.currencySymbol || '₹';
   const footer = settings.invoiceFooter || 'Thank you for choosing Boxy Cloud Kitchen!';
-  const fmt = (val) => `${currency} ${Number(val || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const fmt = (val) => formatMoney(val, currency);
 
   const items = Array.isArray(order.items) && order.items.length > 0
     ? order.items
@@ -154,7 +155,7 @@ export const formatWhatsAppReceipt = (order, settings = {}) => {
   const currency = settings.currencySymbol || '₹';
   const fmt = (val) => `${currency} ${Number(val || 0).toFixed(2)}`;
 
-  let itemsText = '';
+  let itemsText;
   if (Array.isArray(order.items) && order.items.length > 0) {
     itemsText = order.items.map(i => {
       const q = Number(i.quantity) || 1;

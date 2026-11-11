@@ -16,16 +16,16 @@ import {
   DollarSign,
   Truck
 } from 'lucide-react';
+import { formatMoney } from '../../utils/format';
+import { useCollections } from '../../hooks/useCollections';
 
 export const SupplierLedgerReport = ({ initialSupplierId = null }) => {
   const { data, recordSupplierPayment } = useApp();
 
-  const suppliers = data?.suppliers || [];
-  const purchases = data?.purchases || [];
-  const transactions = data?.transactions || [];
+  const { suppliers, purchases, transactions } = useCollections();
 
   const currency = data?.settings?.currencySymbol || '₹';
-  const fmt = (val) => `${currency} ${Number(val || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const fmt = (val) => formatMoney(val, currency, 'en-IN');
 
   // 1. ISOLATE SUPPLIER SEARCH STATE
   const [searchQuery, setSearchQuery] = useState('');

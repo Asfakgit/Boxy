@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { api, getDatabase, saveDatabase } from '../services/apiService';
-import { convertQuantity, calculateIngredientCost } from '../utils/unitConverter';
+import { convertQuantity } from '../utils/unitConverter';
 
 const AppContext = createContext();
 
@@ -28,6 +28,15 @@ const getItemId = (item) => String(item?.code || item?.id || item?.invoiceNumber
 export const AppProvider = ({ children }) => {
   // Database State
   const [data, setData] = useState(() => getDatabase());
+
+  // Apply an immutable update to the database and persist it to localStorage.
+  const updateDb = useCallback((updater) => {
+    setData(prev => {
+      const next = updater(prev);
+      saveDatabase(next);
+      return next;
+    });
+  }, []);
   const [metrics, setMetrics] = useState({
     todaySales: 0,
     totalSales: 0,
@@ -321,12 +330,10 @@ export const AppProvider = ({ children }) => {
         totalCost: Number(ing.totalCost || 0)
       }));
 
-      setData(prev => {
+      updateDb(prev => {
         const otherRecipes = (prev.recipes || []).filter(r => String(r.productCode).trim() !== codeStr);
         const nextRecipes = [...otherRecipes, ...rows];
-        const nextDb = { ...prev, recipes: nextRecipes };
-        saveDatabase(nextDb);
-        return nextDb;
+        return { ...prev, recipes: nextRecipes };
       });
 
       showToast(`Recipe saved for "${productName}" (${rows.length} ingredients)!`, 'success');
@@ -352,11 +359,9 @@ export const AppProvider = ({ children }) => {
       const codeStr = String(productCode).trim();
       const toDelete = (data?.recipes || []).filter(r => String(r.productCode).trim() === codeStr);
 
-      setData(prev => {
+      updateDb(prev => {
         const nextRecipes = (prev.recipes || []).filter(r => String(r.productCode).trim() !== codeStr);
-        const nextDb = { ...prev, recipes: nextRecipes };
-        saveDatabase(nextDb);
-        return nextDb;
+        return { ...prev, recipes: nextRecipes };
       });
 
       showToast('Recipe deleted successfully', 'success');
@@ -381,7 +386,7 @@ export const AppProvider = ({ children }) => {
       const sale = (data?.sales || []).find(s => s.invoiceNumber === invoiceNumber);
       if (!sale) throw new Error('Order not found');
 
-      setData(prev => {
+      updateDb(prev => {
         let nextRawMaterials = [...(prev.rawMaterials || [])];
         const allRecipes = prev.recipes || [];
         const restockTxns = [];
@@ -432,14 +437,12 @@ export const AppProvider = ({ children }) => {
           s.invoiceNumber === invoiceNumber ? { ...s, status: 'Cancelled' } : s
         );
 
-        const nextDb = {
+        return {
           ...prev,
           sales: nextSales,
           rawMaterials: nextRawMaterials,
           transactions: [...(prev.transactions || []), ...restockTxns]
         };
-        saveDatabase(nextDb);
-        return nextDb;
       });
 
       showToast(`Order #${invoiceNumber} cancelled & raw materials restored!`, 'success');
@@ -500,7 +503,7 @@ export const AppProvider = ({ children }) => {
       };
 
       // 1. Instantly update React state and LocalStorage
-      setData(prev => {
+      updateDb(prev => {
         const nextSales = [salePayload, ...(prev.sales || [])];
         const nextTxns = [txnPayload, ...(prev.transactions || [])];
         const allRecipes = prev.recipes || [];
@@ -583,7 +586,7 @@ export const AppProvider = ({ children }) => {
           });
         }
 
-        const nextDb = {
+        return {
           ...prev,
           sales: nextSales,
           transactions: [...nextTxns, ...bomConsumptionTxns],
@@ -591,8 +594,6 @@ export const AppProvider = ({ children }) => {
           rawMaterials: nextRawMaterials,
           customers: nextCustomers
         };
-        saveDatabase(nextDb);
-        return nextDb;
       });
 
       clearCart();
@@ -645,7 +646,7 @@ export const AppProvider = ({ children }) => {
     };
 
     // 1. Instantly update React state & localStorage
-    setData(prev => {
+    updateDb(prev => {
       const nextPurchases = [fullPurchase, ...(prev.purchases || [])];
       const nextTxns = [txnPayload, ...(prev.transactions || [])];
 
@@ -683,15 +684,13 @@ export const AppProvider = ({ children }) => {
         return p;
       });
 
-      const nextDb = {
+      return {
         ...prev,
         purchases: nextPurchases,
         transactions: nextTxns,
         rawMaterials: nextRawMaterials,
         products: nextProducts
       };
-      saveDatabase(nextDb);
-      return nextDb;
     });
 
     showToast('Purchase recorded & inventory restocked!', 'success');
@@ -728,12 +727,10 @@ export const AppProvider = ({ children }) => {
     };
 
     // 1. Instantly update React state & localStorage
-    setData(prev => {
+    updateDb(prev => {
       const nextExpenses = [fullExpense, ...(prev.expenses || [])];
       const nextTxns = [txnPayload, ...(prev.transactions || [])];
-      const nextDb = { ...prev, expenses: nextExpenses, transactions: nextTxns };
-      saveDatabase(nextDb);
-      return nextDb;
+      return { ...prev, expenses: nextExpenses, transactions: nextTxns };
     });
 
     showToast('Expense recorded successfully!', 'success');
@@ -763,7 +760,7 @@ export const AppProvider = ({ children }) => {
       notes: 'Customer debt payment'
     };
 
-    setData(prev => {
+    updateDb(prev => {
       const nextCustomers = (prev.customers || []).map(c => {
         if (String(c.id) === String(customerId)) {
           const current = Number(c.outstandingBalance || 0);
@@ -772,9 +769,7 @@ export const AppProvider = ({ children }) => {
         return c;
       });
       const nextTxns = [txnPayload, ...(prev.transactions || [])];
-      const nextDb = { ...prev, customers: nextCustomers, transactions: nextTxns };
-      saveDatabase(nextDb);
-      return nextDb;
+      return { ...prev, customers: nextCustomers, transactions: nextTxns };
     });
 
     showToast(`Recorded customer payment of ${data.settings?.currencySymbol || '₹'}${amount}!`, 'success');
@@ -803,7 +798,7 @@ export const AppProvider = ({ children }) => {
       notes: 'Vendor bill payment'
     };
 
-    setData(prev => {
+    updateDb(prev => {
       const nextSuppliers = (prev.suppliers || []).map(s => {
         if (String(s.id) === String(supplierId)) {
           const current = Number(s.outstandingBalance || 0);
@@ -812,9 +807,7 @@ export const AppProvider = ({ children }) => {
         return s;
       });
       const nextTxns = [txnPayload, ...(prev.transactions || [])];
-      const nextDb = { ...prev, suppliers: nextSuppliers, transactions: nextTxns };
-      saveDatabase(nextDb);
-      return nextDb;
+      return { ...prev, suppliers: nextSuppliers, transactions: nextTxns };
     });
 
     showToast(`Recorded vendor payment of ${data.settings?.currencySymbol || '₹'}${amount}!`, 'success');
@@ -845,7 +838,7 @@ export const AppProvider = ({ children }) => {
     if (itemWithId.id && !itemWithId.code) itemWithId.code = itemWithId.id;
 
     // 1. Instantly update React state & localStorage (Row 1 at the top!)
-    setData(prev => {
+    updateDb(prev => {
       const list = [...(prev[collectionKey] || [])];
       const targetId = getItemId(itemWithId);
       const existingIdx = list.findIndex(i => getItemId(i) === targetId);
@@ -856,9 +849,7 @@ export const AppProvider = ({ children }) => {
         list.unshift(itemWithId); // Put at TOP so it is immediately visible!
       }
 
-      const nextDb = { ...prev, [collectionKey]: list };
-      saveDatabase(nextDb);
-      return nextDb;
+      return { ...prev, [collectionKey]: list };
     });
 
     showToast(`${label} saved successfully!`, 'success');
@@ -880,11 +871,9 @@ export const AppProvider = ({ children }) => {
     const targetIdStr = String(id);
 
     // 1. Instantly remove from React state & localStorage
-    setData(prev => {
+    updateDb(prev => {
       const list = (prev[collectionKey] || []).filter(i => getItemId(i) !== targetIdStr);
-      const nextDb = { ...prev, [collectionKey]: list };
-      saveDatabase(nextDb);
-      return nextDb;
+      return { ...prev, [collectionKey]: list };
     });
 
     showToast(`${label} deleted!`, 'success');
@@ -903,7 +892,7 @@ export const AppProvider = ({ children }) => {
     const targetIdStr = String(itemId);
 
     // 1. Instantly update React state & localStorage
-    setData(prev => {
+    updateDb(prev => {
       let nextProducts = [...(prev.products || [])];
       let nextRawMaterials = [...(prev.rawMaterials || [])];
 
@@ -923,9 +912,7 @@ export const AppProvider = ({ children }) => {
         nextRawMaterials[rmIdx] = { ...nextRawMaterials[rmIdx], currentStock: updated };
       }
 
-      const nextDb = { ...prev, products: nextProducts, rawMaterials: nextRawMaterials };
-      saveDatabase(nextDb);
-      return nextDb;
+      return { ...prev, products: nextProducts, rawMaterials: nextRawMaterials };
     });
 
     showToast('Stock updated successfully!', 'success');
@@ -942,12 +929,10 @@ export const AppProvider = ({ children }) => {
   const resetAllStockToZero = async () => {
     setIsLoading(true);
     try {
-      setData(prev => {
+      updateDb(prev => {
         const nextProducts = (prev.products || []).map(p => ({ ...p, currentStock: 0 }));
         const nextRawMaterials = (prev.rawMaterials || []).map(rm => ({ ...rm, currentStock: 0, totalAmount: 0 }));
-        const nextDb = { ...prev, products: nextProducts, rawMaterials: nextRawMaterials };
-        saveDatabase(nextDb);
-        return nextDb;
+        return { ...prev, products: nextProducts, rawMaterials: nextRawMaterials };
       });
 
       const db = getDatabase();
@@ -984,7 +969,7 @@ export const AppProvider = ({ children }) => {
     if (!item.id) item.id = 'PRT-' + Math.floor(Math.random() * 9000 + 1000);
     item.profitShare = Number(item.profitShare || 0);
 
-    setData(prev => {
+    updateDb(prev => {
       const partners = [...(prev.partners || [])];
       const idx = partners.findIndex(p => p.id === item.id);
       if (idx !== -1) {
@@ -1024,9 +1009,7 @@ export const AppProvider = ({ children }) => {
         }
       }
 
-      const nextDb = { ...prev, partners, labourers };
-      saveDatabase(nextDb);
-      return nextDb;
+      return { ...prev, partners, labourers };
     });
 
     showToast(`Partner profile for ${item.name} saved!`, 'success');
@@ -1042,12 +1025,10 @@ export const AppProvider = ({ children }) => {
 
   const deletePartner = async (partnerId) => {
     setIsLoading(true);
-    setData(prev => {
+    updateDb(prev => {
       const partners = (prev.partners || []).filter(p => p.id !== partnerId);
       const labourers = (prev.labourers || []).map(l => l.partnerId === partnerId ? { ...l, partnerId: null } : l);
-      const nextDb = { ...prev, partners, labourers };
-      saveDatabase(nextDb);
-      return nextDb;
+      return { ...prev, partners, labourers };
     });
     showToast('Partner profile removed.', 'success');
     setIsLoading(false);
@@ -1086,12 +1067,10 @@ export const AppProvider = ({ children }) => {
       notes: `Partner Withdrawal: ${partnerName}`
     };
 
-    setData(prev => {
+    updateDb(prev => {
       const nextWithdrawals = [withdrawalEntry, ...(prev.partnerWithdrawals || [])];
       const nextTxns = [txnPayload, ...(prev.transactions || [])];
-      const nextDb = { ...prev, partnerWithdrawals: nextWithdrawals, transactions: nextTxns };
-      saveDatabase(nextDb);
-      return nextDb;
+      return { ...prev, partnerWithdrawals: nextWithdrawals, transactions: nextTxns };
     });
 
     showToast(`Recorded profit withdrawal of ${data.settings?.currencySymbol || '₹'}${numAmount} for ${partnerName}!`, 'success');
@@ -1107,12 +1086,10 @@ export const AppProvider = ({ children }) => {
 
   const deletePartnerWithdrawal = async (withdrawalId) => {
     setIsLoading(true);
-    setData(prev => {
+    updateDb(prev => {
       const nextWithdrawals = (prev.partnerWithdrawals || []).filter(w => w.id !== withdrawalId);
       const nextTxns = (prev.transactions || []).filter(t => t.reference !== withdrawalId);
-      const nextDb = { ...prev, partnerWithdrawals: nextWithdrawals, transactions: nextTxns };
-      saveDatabase(nextDb);
-      return nextDb;
+      return { ...prev, partnerWithdrawals: nextWithdrawals, transactions: nextTxns };
     });
     showToast('Partner withdrawal record removed.', 'success');
     setIsLoading(false);
@@ -1133,7 +1110,7 @@ export const AppProvider = ({ children }) => {
     if (!item.id) item.id = 'LBR-' + Math.floor(Math.random() * 9000 + 1000);
     item.salaryAmount = Number(item.salaryAmount || 0);
 
-    setData(prev => {
+    updateDb(prev => {
       const labourers = [...(prev.labourers || [])];
       const idx = labourers.findIndex(l => l.id === item.id);
       if (idx !== -1) {
@@ -1157,9 +1134,7 @@ export const AppProvider = ({ children }) => {
         }
       }
 
-      const nextDb = { ...prev, labourers, partners };
-      saveDatabase(nextDb);
-      return nextDb;
+      return { ...prev, labourers, partners };
     });
 
     showToast(`Labour profile for ${item.name} saved!`, 'success');
@@ -1175,16 +1150,14 @@ export const AppProvider = ({ children }) => {
 
   const deleteLabourer = async (labourId) => {
     setIsLoading(true);
-    setData(prev => {
+    updateDb(prev => {
       const target = (prev.labourers || []).find(l => l.id === labourId);
       const labourers = (prev.labourers || []).filter(l => l.id !== labourId);
       let partners = [...(prev.partners || [])];
       if (target?.partnerId) {
         partners = partners.map(p => p.id === target.partnerId ? { ...p, isLabour: false } : p);
       }
-      const nextDb = { ...prev, labourers, partners };
-      saveDatabase(nextDb);
-      return nextDb;
+      return { ...prev, labourers, partners };
     });
     showToast('Labourer record removed.', 'success');
     setIsLoading(false);
@@ -1236,13 +1209,11 @@ export const AppProvider = ({ children }) => {
       notes: `Salary: ${labourName} (${payMonth})`
     };
 
-    setData(prev => {
+    updateDb(prev => {
       const nextPayments = [paymentEntry, ...(prev.salaryPayments || [])];
       const nextExpenses = [expenseEntry, ...(prev.expenses || [])];
       const nextTxns = [txnPayload, ...(prev.transactions || [])];
-      const nextDb = { ...prev, salaryPayments: nextPayments, expenses: nextExpenses, transactions: nextTxns };
-      saveDatabase(nextDb);
-      return nextDb;
+      return { ...prev, salaryPayments: nextPayments, expenses: nextExpenses, transactions: nextTxns };
     });
 
     showToast(`Recorded salary payment of ${data.settings?.currencySymbol || '₹'}${numAmount} to ${labourName}!`, 'success');
@@ -1259,14 +1230,11 @@ export const AppProvider = ({ children }) => {
 
   const deleteSalaryPayment = async (paymentId) => {
     setIsLoading(true);
-    setData(prev => {
-      const target = (prev.salaryPayments || []).find(p => p.id === paymentId);
+    updateDb(prev => {
       const nextPayments = (prev.salaryPayments || []).filter(p => p.id !== paymentId);
       const nextExpenses = (prev.expenses || []).filter(e => e.id !== `EXP-SAL-${paymentId.replace('SALPAY-', '')}` && !e.description?.includes(paymentId));
       const nextTxns = (prev.transactions || []).filter(t => t.reference !== paymentId);
-      const nextDb = { ...prev, salaryPayments: nextPayments, expenses: nextExpenses, transactions: nextTxns };
-      saveDatabase(nextDb);
-      return nextDb;
+      return { ...prev, salaryPayments: nextPayments, expenses: nextExpenses, transactions: nextTxns };
     });
     showToast('Salary payment record reversed.', 'success');
     setIsLoading(false);
@@ -1289,7 +1257,7 @@ export const AppProvider = ({ children }) => {
       notes
     };
 
-    setData(prev => {
+    updateDb(prev => {
       const list = [...(prev.attendance || [])];
       const idx = list.findIndex(a => (a.labourId === labourId && a.date === date) || a.id === attId);
       if (idx !== -1) {
@@ -1297,9 +1265,7 @@ export const AppProvider = ({ children }) => {
       } else {
         list.unshift(attEntry);
       }
-      const nextDb = { ...prev, attendance: list };
-      saveDatabase(nextDb);
-      return nextDb;
+      return { ...prev, attendance: list };
     });
 
     showToast(`Attendance updated for ${labourName}!`, 'success');

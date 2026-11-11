@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Trash2, AlertTriangle, Edit3, CheckCircle2, X, Loader2 } from 'lucide-react';
+import { Trash2, Edit3, X } from 'lucide-react';
 import { Button } from './Button';
 
 export const ConfirmDialog = ({

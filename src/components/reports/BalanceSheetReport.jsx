@@ -15,6 +15,8 @@ import {
   CreditCard,
   RefreshCw
 } from 'lucide-react';
+import { formatMoney } from '../../utils/format';
+import { useCollections } from '../../hooks/useCollections';
 
 export const BalanceSheetReport = () => {
   const { data, refreshData } = useApp();
@@ -23,16 +25,9 @@ export const BalanceSheetReport = () => {
   const [asOfDate, setAsOfDate] = useState(todayStr);
 
   const currency = data?.settings?.currencySymbol || '₹';
-  const fmt = (val) => `${currency} ${Number(val || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const fmt = (val) => formatMoney(val, currency, 'en-IN');
 
-  const sales = data?.sales || [];
-  const purchases = data?.purchases || [];
-  const expenses = data?.expenses || [];
-  const transactions = data?.transactions || [];
-  const products = data?.products || [];
-  const rawMaterials = data?.rawMaterials || [];
-  const customers = data?.customers || [];
-  const suppliers = data?.suppliers || [];
+  const { sales, purchases, expenses, transactions, products, rawMaterials, customers, suppliers } = useCollections();
 
   const balanceSheet = useMemo(() => {
     // Filter items up to asOfDate
@@ -213,9 +208,6 @@ export const BalanceSheetReport = () => {
   const currentRatio = balanceSheet.totalLiabilities > 0
     ? (balanceSheet.totalAssets / balanceSheet.totalLiabilities).toFixed(2)
     : 'Strong (No Debt)';
-  const quickRatio = balanceSheet.totalLiabilities > 0
-    ? ((balanceSheet.assets.totalCash + balanceSheet.assets.accountsReceivable) / balanceSheet.totalLiabilities).toFixed(2)
-    : 'Strong';
 
   return (
     <div className="space-y-4 sm:space-y-6">

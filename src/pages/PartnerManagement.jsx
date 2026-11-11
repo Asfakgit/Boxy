@@ -24,16 +24,13 @@ import {
   Calendar,
   Percent,
   Download,
-  Phone,
-  MapPin,
   Briefcase,
   AlertTriangle,
   CheckCircle2,
   HardHat,
   ArrowRight,
   Edit2,
-  Trash2,
-  ExternalLink
+  Trash2
 } from 'lucide-react';
 
 export const PartnerManagement = () => {
