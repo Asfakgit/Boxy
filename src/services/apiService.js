@@ -9,7 +9,7 @@
 import { INITIAL_DATA } from './mockData';
 
 const STORAGE_KEY = 'boxy_cloud_kitchen_db_v3';
-export const DEFAULT_SCRIPT_URL = import.meta.env.VITE_GOOGLE_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbzPPvwAW0ZCPrfXE5fC3ALeepJyF_KTPZNrltIldHt6HzBGQcVY9ErinAZgpCXiS2HR/exec';
+export const DEFAULT_SCRIPT_URL = import.meta.env.VITE_GOOGLE_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbwrw-HMcUHv0k1wu1mYli71WUKAICGL-xZxbJ0OlZTDjZB7jtB-uz8ujkoFpS1jYq9-/exec';
 export const DEFAULT_SHEET_URL = import.meta.env.VITE_GOOGLE_SHEET_URL || 'https://docs.google.com/spreadsheets/d/19VZ70qy1rUHsBTfn1FSUyjqarB56VujZJR7UcJqZXb8/edit';
 export const DEFAULT_SHEET_ID = import.meta.env.VITE_GOOGLE_SHEET_ID || '19VZ70qy1rUHsBTfn1FSUyjqarB56VujZJR7UcJqZXb8';
 
@@ -80,9 +80,19 @@ export const clearLocalCache = () => {
   localStorage.removeItem(STORAGE_KEY);
 };
 
+// Old Apps Script deployments. A saved URL pointing at one of these is ignored
+// in favour of DEFAULT_SCRIPT_URL, so browsers with a cached URL follow redeploys.
+const RETIRED_DEPLOYMENT_IDS = [
+  'AKfycbzPPvwAW0ZCPrfXE5fC3ALeepJyF_KTPZNrltIldHt6HzBGQcVY9ErinAZgpCXiS2HR',
+];
+
+const isRetiredUrl = (url) => RETIRED_DEPLOYMENT_IDS.some(id => String(url || '').includes(id));
+
 export const getScriptUrl = () => {
   const db = getDatabase();
-  return (db.settings?.googleScriptUrl || localStorage.getItem('BOXY_GAS_URL') || DEFAULT_SCRIPT_URL).trim();
+  const saved = [db.settings?.googleScriptUrl, localStorage.getItem('BOXY_GAS_URL')]
+    .find(url => url && !isRetiredUrl(url));
+  return (saved || DEFAULT_SCRIPT_URL).trim();
 };
 
 export const isLiveMode = () => true;
@@ -149,24 +159,144 @@ export const testGoogleSheetsConnection = async (testUrl = null) => {
 };
 
 /**
- * Direct Live Request Engine to Google Apps Script
+ * ============================================================================
+ * Offline Outbox
+ * ----------------------------------------------------------------------------
+ * Writes that cannot reach Google Sheets (no network) are persisted here in
+ * order and replayed once connectivity returns. Each entry carries a stable
+ * requestId so the Apps Script backend can ignore a replay it already applied.
+ * ============================================================================
  */
-const apiRequest = async (action, payload = {}, method = 'POST') => {
-  const url = getScriptUrl();
+const OUTBOX_KEY = 'boxy_sync_outbox_v1';
 
+// Write actions that are safe to queue and replay later.
+const QUEUEABLE_ACTIONS = new Set([
+  'recordSale', 'recordPurchase', 'recordExpense',
+  'recordCustomerPayment', 'recordSupplierPayment',
+  'saveRow', 'deleteRow', 'adjustStock'
+]);
+
+const outboxListeners = new Set();
+
+export const getOutbox = () => {
   try {
-    let response;
+    const list = JSON.parse(localStorage.getItem(OUTBOX_KEY) || '[]');
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+};
+
+const setOutbox = (list) => {
+  localStorage.setItem(OUTBOX_KEY, JSON.stringify(list));
+  outboxListeners.forEach(fn => {
+    try { fn(list.length); } catch { /* listener errors are non-fatal */ }
+  });
+};
+
+export const getPendingSyncCount = () => getOutbox().length;
+
+export const subscribeOutbox = (fn) => {
+  outboxListeners.add(fn);
+  return () => outboxListeners.delete(fn);
+};
+
+const newRequestId = () =>
+  (typeof crypto !== 'undefined' && crypto.randomUUID)
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+
+const enqueue = (entry) => {
+  setOutbox([...getOutbox(), entry]);
+};
+
+const isOffline = () => typeof navigator !== 'undefined' && navigator.onLine === false;
+
+// A fetch() rejection means the request never got a response (offline, DNS, timeout).
+class NetworkError extends Error {}
+
+const sendRequest = async (action, payload, method) => {
+  const url = getScriptUrl();
+  try {
     if (method === 'GET') {
       const query = new URLSearchParams({ action, ...payload }).toString();
-      response = await fetch(`${url}?${query}`);
-    } else {
-      // Use text/plain to avoid browser CORS preflight blocker on Google Apps Script
-      response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action, ...payload })
-      });
+      return await fetch(`${url}?${query}`);
     }
+    // Use text/plain to avoid browser CORS preflight blocker on Google Apps Script
+    return await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action, ...payload })
+    });
+  } catch (e) {
+    throw new NetworkError(e?.message || 'Network request failed', { cause: e });
+  }
+};
+
+let flushPromise = null;
+
+/**
+ * Replay queued writes in order. Stops at the first network failure (still
+ * offline). Entries the server explicitly rejects are dropped so a single bad
+ * row can never block the rest of the queue forever.
+ * Resolves to the number of entries still pending.
+ */
+export const flushOutbox = () => {
+  if (flushPromise) return flushPromise;
+  flushPromise = (async () => {
+    try {
+      while (getOutbox().length > 0) {
+        if (isOffline()) break;
+        const [entry] = getOutbox();
+        try {
+          await executeRequest(entry.action, entry.payload, 'POST');
+        } catch (err) {
+          if (err instanceof NetworkError) break;
+          console.error(`Dropping queued [${entry.action}] rejected by server:`, err);
+        }
+        setOutbox(getOutbox().filter(e => e.payload?.requestId !== entry.payload?.requestId));
+      }
+    } finally {
+      flushPromise = null;
+    }
+    return getOutbox().length;
+  })();
+  return flushPromise;
+};
+
+export const clearOutbox = () => setOutbox([]);
+
+/**
+ * Request entry point. Queueable writes go through the outbox when offline,
+ * when earlier writes are still pending (to keep ordering), or on network failure.
+ */
+const apiRequest = async (action, payload = {}, method = 'POST') => {
+  if (method === 'POST' && QUEUEABLE_ACTIONS.has(action)) {
+    const entry = { action, payload: { ...payload, requestId: newRequestId() }, queuedAt: new Date().toISOString() };
+    if (isOffline() || getOutbox().length > 0) {
+      enqueue(entry);
+      flushOutbox();
+      return { queued: true };
+    }
+    try {
+      return await executeRequest(action, entry.payload, method);
+    } catch (err) {
+      if (err instanceof NetworkError) {
+        enqueue(entry);
+        return { queued: true };
+      }
+      throw err;
+    }
+  }
+  return executeRequest(action, payload, method);
+};
+
+/**
+ * Direct Live Request Engine to Google Apps Script
+ */
+const executeRequest = async (action, payload = {}, method = 'POST') => {
+  try {
+    const response = await sendRequest(action, payload, method);
 
     const text = await response.text();
     let json = null;
@@ -250,6 +380,7 @@ export const api = {
   setupSheets: () => apiRequest('setupSheets', {}, 'GET'),
   cleanupDatabase: () => apiRequest('cleanupDatabase', {}, 'POST'),
   clearAllData: async () => {
+    clearOutbox();
     localStorage.removeItem(STORAGE_KEY);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_DATA));
     try {
@@ -261,6 +392,11 @@ export const api = {
   },
   testConnection: (url) => testGoogleSheetsConnection(url),
   purgeAndRefetch: async () => {
+    // Never discard local data that hasn't reached the cloud yet.
+    const pending = await flushOutbox();
+    if (pending > 0) {
+      throw new Error(`${pending} change(s) are still waiting to sync. Connect to the internet and try again.`);
+    }
     clearLocalCache();
     return apiRequest('getAllData', {}, 'GET');
   }
@@ -277,5 +413,7 @@ export const apiService = {
     localStorage.setItem('BOXY_GAS_URL', (url || '').trim());
   },
   isLiveMode: () => true,
-  getScriptUrl: () => getScriptUrl()
+  getScriptUrl: () => getScriptUrl(),
+  flushOutbox,
+  getPendingSyncCount
 };

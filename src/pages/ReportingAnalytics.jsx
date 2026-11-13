@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
+import { printHtml } from '../utils/nativeBridge';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Table } from '../components/ui/Table';
@@ -639,12 +640,6 @@ export const ReportingAnalytics = () => {
   // PRINT & EXPORT HANDLERS
   // ==========================================
   const triggerPrintWindow = (title, periodSubtitle, metricsList, tablesHtml) => {
-    const printWindow = window.open('', '_blank', 'width=950,height=750');
-    if (!printWindow) {
-      window.print();
-      return;
-    }
-
     const metricsHtml = metricsList.map(m => `
       <div style="flex: 1; min-width: 140px; padding: 12px 16px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px;">
         <div style="font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 700;">${m.label}</div>
@@ -652,7 +647,7 @@ export const ReportingAnalytics = () => {
       </div>
     `).join('');
 
-    printWindow.document.write(`
+    const html = `
       <!DOCTYPE html>
       <html>
         <head>
@@ -708,13 +703,8 @@ export const ReportingAnalytics = () => {
           </div>
         </body>
       </html>
-    `);
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => {
-      printWindow.print();
-      printWindow.close();
-    }, 400);
+    `;
+    printHtml(html, { jobName: title, width: 950 }).catch(err => console.error('Print failed:', err));
   };
 
   // 1. Export Daily PDF

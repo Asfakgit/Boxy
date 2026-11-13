@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { api, getDatabase, saveDatabase } from '../services/apiService';
+import { api, getDatabase, saveDatabase, flushOutbox, getPendingSyncCount, subscribeOutbox } from '../services/apiService';
+import { onAppResume } from '../utils/nativeBridge';
 import { convertQuantity } from '../utils/unitConverter';
 
 const AppContext = createContext();
@@ -108,6 +109,11 @@ export const AppProvider = ({ children }) => {
   const refreshData = useCallback(async (silent = false) => {
     if (!silent) setIsSyncing(true);
     try {
+      // Push offline changes first. While anything is still pending, the cloud
+      // copy is stale, so merging it would overwrite local edits/deletions.
+      const stillPending = await flushOutbox();
+      if (stillPending > 0) return;
+
       const cloudData = await api.getAllData();
       if (cloudData && typeof cloudData === 'object') {
         setData(currentLocal => {
@@ -171,6 +177,36 @@ export const AppProvider = ({ children }) => {
 
   useEffect(() => {
     refreshData();
+  }, [refreshData]);
+
+  // Connectivity + offline sync queue status
+  const [isOnline, setIsOnline] = useState(() => typeof navigator === 'undefined' ? true : navigator.onLine !== false);
+  const [pendingSyncCount, setPendingSyncCount] = useState(() => getPendingSyncCount());
+
+  useEffect(() => {
+    const unsubscribe = subscribeOutbox(setPendingSyncCount);
+    const handleOnline = () => {
+      setIsOnline(true);
+      refreshData(true);
+    };
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    const removeResume = onAppResume(() => refreshData(true));
+
+    // Safety net: retry pending uploads periodically (e.g. flaky connections
+    // where the 'online' event never fires).
+    const timer = setInterval(() => {
+      if (getPendingSyncCount() > 0 && navigator.onLine !== false) refreshData(true);
+    }, 60000);
+
+    return () => {
+      unsubscribe();
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      removeResume();
+      clearInterval(timer);
+    };
   }, [refreshData]);
 
   // POS Cart Methods
@@ -1404,6 +1440,8 @@ export const AppProvider = ({ children }) => {
       recordSalaryPayment,
       deleteSalaryPayment,
       recordAttendance,
+      isOnline,
+      pendingSyncCount,
       toasts,
       showToast,
       removeToast,

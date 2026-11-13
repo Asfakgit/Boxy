@@ -1,4 +1,5 @@
 import { formatMoney } from './format';
+import { printHtml } from './nativeBridge';
 /**
  * Boxy Cloud Kitchen — Receipt Printing & WhatsApp Invoice Formatter
  * 
@@ -41,13 +42,7 @@ export const printOrderReceipt = (order, settings = {}) => {
     `;
   }).join('');
 
-  const printWindow = window.open('', '_blank', 'width=450,height=750');
-  if (!printWindow) {
-    window.print();
-    return;
-  }
-
-  printWindow.document.write(`
+  const html = `
     <!DOCTYPE html>
     <html>
       <head>
@@ -139,14 +134,9 @@ export const printOrderReceipt = (order, settings = {}) => {
         </div>
       </body>
     </html>
-  `);
+  `;
 
-  printWindow.document.close();
-  printWindow.focus();
-  setTimeout(() => {
-    printWindow.print();
-    printWindow.close();
-  }, 350);
+  return printHtml(html, { jobName: `Receipt_${order.invoiceNumber || ''}`, width: 450 });
 };
 
 export const formatWhatsAppReceipt = (order, settings = {}) => {

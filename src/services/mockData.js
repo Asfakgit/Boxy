@@ -12,7 +12,7 @@ export const INITIAL_DATA = {
     taxRate: 0,
     invoiceFooter: "Thank you for choosing Boxy Cloud Kitchen! Freshness & quality guaranteed.",
     whatsappTemplate: "Hello {customerName}, your Boxy invoice #{invoiceNumber} for {currency}{amount} is ready. Thank you for your order!",
-    googleScriptUrl: import.meta.env.VITE_GOOGLE_SCRIPT_URL || "https://script.google.com/macros/s/AKfycbzPPvwAW0ZCPrfXE5fC3ALeepJyF_KTPZNrltIldHt6HzBGQcVY9ErinAZgpCXiS2HR/exec",
+    googleScriptUrl: import.meta.env.VITE_GOOGLE_SCRIPT_URL || "https://script.google.com/macros/s/AKfycbwrw-HMcUHv0k1wu1mYli71WUKAICGL-xZxbJ0OlZTDjZB7jtB-uz8ujkoFpS1jYq9-/exec",
     googleSheetUrl: import.meta.env.VITE_GOOGLE_SHEET_URL || "https://docs.google.com/spreadsheets/d/19VZ70qy1rUHsBTfn1FSUyjqarB56VujZJR7UcJqZXb8/edit"
   },
   transactions: [],

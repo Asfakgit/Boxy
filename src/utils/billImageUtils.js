@@ -1,3 +1,4 @@
+import { isNative, saveFile, shareFileNative, openExternal } from './nativeBridge';
 /**
  * Bill / Receipt Image Generation & WhatsApp Sharing Utilities
  * Pure HTML5 Canvas implementation - 100% immune to modern CSS / Tailwind OKLCH parser issues.
@@ -381,14 +382,8 @@ export const generateBillPNG = async (order, settings = {}) => {
  * Download the bill directly to the user's device as a PNG image.
  */
 export const downloadBillPNG = async (order, settings = {}) => {
-  const { dataUrl, filename } = await generateBillPNG(order, settings);
-  const link = document.createElement('a');
-  link.href = dataUrl;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  return filename;
+  const { blob, filename } = await generateBillPNG(order, settings);
+  return saveFile(blob, filename, 'image/png');
 };
 
 /**
@@ -417,6 +412,17 @@ export const shareBillAsPNGViaWhatsApp = async (order, settings = {}) => {
   // 1. Generate the crisp PNG image using pure Canvas
   const { blob, filename, dataUrl } = await generateBillPNG(order, settings);
   const imageFile = new File([blob], filename, { type: 'image/png' });
+
+  // Android app: native share sheet with the PNG attached (WhatsApp, etc.)
+  if (isNative()) {
+    await shareFileNative(blob, filename, { title: `Bill #${order.invoiceNumber}`, text: caption });
+    return {
+      success: true,
+      sharedDirectly: true,
+      method: 'native-share',
+      message: 'Bill PNG image shared!'
+    };
+  }
 
   // 2. Check if native Web Share with files is supported (Mobile Chrome, Safari, Android/iOS)
   if (navigator.canShare && navigator.canShare({ files: [imageFile] })) {
@@ -467,7 +473,7 @@ export const shareBillAsPNGViaWhatsApp = async (order, settings = {}) => {
     ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(caption)}`
     : `https://wa.me/?text=${encodeURIComponent(caption)}`;
 
-  window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+  openExternal(whatsappUrl);
 
   return {
     success: true,

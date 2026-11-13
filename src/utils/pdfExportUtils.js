@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { isNative, shareFileNative } from './nativeBridge';
 
 /**
  * Format currency safely for standard jsPDF fonts (Helvetica/Courier)
@@ -297,7 +298,11 @@ const drawPortalFooter = (ctx, portalName) => {
 };
 
 const saveDoc = (doc, fileName) => {
-  doc.save(fileName);
+  if (isNative()) {
+    shareFileNative(doc.output('blob'), fileName).catch(err => console.error('PDF export failed:', err));
+  } else {
+    doc.save(fileName);
+  }
   return fileName;
 };
 
