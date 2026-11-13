@@ -9,7 +9,7 @@
 import { INITIAL_DATA } from './mockData';
 
 const STORAGE_KEY = 'boxy_cloud_kitchen_db_v3';
-export const DEFAULT_SCRIPT_URL = import.meta.env.VITE_GOOGLE_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbwrw-HMcUHv0k1wu1mYli71WUKAICGL-xZxbJ0OlZTDjZB7jtB-uz8ujkoFpS1jYq9-/exec';
+export const DEFAULT_SCRIPT_URL = import.meta.env.VITE_GOOGLE_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycby2PWFa6tvXaHpUay3NKDA3Vi6evV0AavK8vTQ8ChVPNsb3xIo3BKsFZWHrcnR3Ij-T/exec';
 export const DEFAULT_SHEET_URL = import.meta.env.VITE_GOOGLE_SHEET_URL || 'https://docs.google.com/spreadsheets/d/19VZ70qy1rUHsBTfn1FSUyjqarB56VujZJR7UcJqZXb8/edit';
 export const DEFAULT_SHEET_ID = import.meta.env.VITE_GOOGLE_SHEET_ID || '19VZ70qy1rUHsBTfn1FSUyjqarB56VujZJR7UcJqZXb8';
 
@@ -84,6 +84,7 @@ export const clearLocalCache = () => {
 // in favour of DEFAULT_SCRIPT_URL, so browsers with a cached URL follow redeploys.
 const RETIRED_DEPLOYMENT_IDS = [
   'AKfycbzPPvwAW0ZCPrfXE5fC3ALeepJyF_KTPZNrltIldHt6HzBGQcVY9ErinAZgpCXiS2HR',
+  'AKfycbwrw-HMcUHv0k1wu1mYli71WUKAICGL-xZxbJ0OlZTDjZB7jtB-uz8ujkoFpS1jYq9-',
 ];
 
 const isRetiredUrl = (url) => RETIRED_DEPLOYMENT_IDS.some(id => String(url || '').includes(id));
